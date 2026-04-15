@@ -109,6 +109,11 @@ export function CustomerDashboardPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Initial fetch on mount
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
+
   const cards = [
     { title: 'Total Orders', value: stats?.total_orders ?? 0, icon: Package,     color: 'earth' },
     { title: 'Pending',      value: stats?.pending      ?? 0, icon: Clock,       color: 'amber' },
