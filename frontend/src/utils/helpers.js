@@ -1,9 +1,6 @@
 export const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount)
+  const num = Number(amount) || 0
+  return '₹' + num.toLocaleString('en-IN')
 }
 
 export const formatDate = (dateStr) => {

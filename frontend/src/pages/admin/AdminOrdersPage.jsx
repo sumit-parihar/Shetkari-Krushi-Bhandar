@@ -108,7 +108,15 @@ export default function AdminOrdersPage() {
       await orderAPI.assignDeliveryBoy(assignModal.order_id, {
         delivery_boy_id: selectedDb ? Number(selectedDb) : null
       })
-      toast.success(`Delivery boy assigned to Order #${assignModal.order_id}`)
+      const isUnassign = !selectedDb && assignModal?.current_db
+      const isReassign = selectedDb && assignModal?.current_db
+      if (isUnassign) {
+        toast.success(`Delivery boy removed from Order #${assignModal.order_id}`)
+      } else if (isReassign) {
+        toast.success(`Delivery boy reassigned for Order #${assignModal.order_id}`)
+      } else {
+        toast.success(`Delivery boy assigned to Order #${assignModal.order_id}`)
+      }
       setAssignModal(null)
       fetchOrders()
     } catch (err) {
@@ -293,15 +301,15 @@ export default function AdminOrdersPage() {
                 {assignModal?.current_db ? 'Change Assignment' : 'Select Delivery Boy'}
               </label>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${!selectedDb ? 'border-red-300 bg-red-50' : 'border-earth-200 hover:border-earth-300'}`}>
-                  <input type="radio" name="db" value="" checked={!selectedDb} onChange={() => setSelectedDb('')} className="accent-red-600" />
-                  <div>
-                    <p className="text-sm font-medium text-red-700">Unassign (remove delivery boy)</p>
-                    {assignModal?.current_db_name && (
+                {assignModal?.current_db && (
+                  <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${!selectedDb ? 'border-red-300 bg-red-50' : 'border-earth-200 hover:border-earth-300'}`}>
+                    <input type="radio" name="db" value="" checked={!selectedDb} onChange={() => setSelectedDb('')} className="accent-red-600" />
+                    <div>
+                      <p className="text-sm font-medium text-red-700">Unassign (remove delivery boy)</p>
                       <p className="text-xs text-red-500">This will remove {assignModal.current_db_name} from this order</p>
-                    )}
-                  </div>
-                </label>
+                    </div>
+                  </label>
+                )}
                 {deliveryBoys.map(db => (
                   <label key={db.user_id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${selectedDb === String(db.user_id) ? 'border-leaf-400 bg-leaf-50' : 'border-earth-200 hover:border-earth-300'}`}>
                     <input type="radio" name="db" value={db.user_id} checked={selectedDb === String(db.user_id)} onChange={() => setSelectedDb(String(db.user_id))} className="accent-leaf-600" />

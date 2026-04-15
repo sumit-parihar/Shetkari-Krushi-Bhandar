@@ -158,7 +158,7 @@ export default function ProfilePage() {
 
           {/* Address */}
           <div>
-            <label className="block text-sm font-medium text-bark mb-1.5">Delivery Address</label>
+            <label className="block text-sm font-medium text-bark mb-1.5">Address</label>
             <div className="relative">
               <MapPin className="absolute left-3 top-3 w-4 h-4 text-earth-400" />
               <textarea

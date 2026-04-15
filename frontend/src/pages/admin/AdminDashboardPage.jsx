@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Package, ShoppingBag, Clock, Truck, CheckCircle,
-  XCircle, DollarSign, AlertTriangle, ArrowRight, Tag, Users
+  XCircle, IndianRupee, AlertTriangle, ArrowRight, Tag, Users
 } from 'lucide-react'
 import { dashboardAPI, orderAPI, productAPI, authAPI } from '../../services/api'
 import { StatsCard, PageLoader, StatusBadge } from '../../components/UI'
@@ -43,7 +43,7 @@ export default function AdminDashboardPage() {
   ]
 
   const cards = [
-    { title: 'Total Revenue', value: formatCurrency(stats?.revenue || 0), icon: DollarSign, color: 'leaf', subtitle: 'Excl. cancelled' },
+    { title: 'Total Revenue', value: formatCurrency(stats?.revenue || 0), icon: IndianRupee, color: 'leaf', subtitle: 'Excl. cancelled' },
     { title: 'Total Orders', value: stats?.total_orders || 0, icon: ShoppingBag, color: 'earth' },
     { title: 'Pending', value: stats?.pending || 0, icon: Clock, color: 'amber' },
     { title: 'Shipped', value: stats?.shipped || 0, icon: Truck, color: 'blue' },

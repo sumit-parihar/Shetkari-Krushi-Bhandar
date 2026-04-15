@@ -1,7 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
+import { Toaster, ToastBar, toast } from 'react-hot-toast'
+import { X } from 'lucide-react'
 import App from './App'
 import './index.css'
 
@@ -29,7 +30,26 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             iconTheme: { primary: '#dc2626', secondary: '#fdfaf5' },
           },
         }}
-      />
+      >
+        {(t) => (
+          <ToastBar toast={t}>
+            {({ icon, message }) => (
+              <>
+                {icon}
+                {message}
+                {t.type !== 'loading' && (
+                  <button
+                    onClick={() => toast.dismiss(t.id)}
+                    className="text-earth-400 hover:text-earth-600 transition-colors ml-2"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </>
+            )}
+          </ToastBar>
+        )}
+      </Toaster>
     </BrowserRouter>
   </React.StrictMode>
 )

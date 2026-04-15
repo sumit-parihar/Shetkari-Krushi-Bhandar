@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useCart } from '../contexts/CartContext'
 
 export default function Navbar() {
-  const { user, isLoggedIn, isAdmin, isDeliveryBoy, logout } = useAuth()
+  const { user, isLoggedIn, isAdmin, isCustomer, isDeliveryBoy, logout } = useAuth()
   const { itemCount } = useCart()
   const navigate = useNavigate()
   const location = useLocation()
@@ -21,8 +21,8 @@ export default function Navbar() {
 
   // Fix 4: Added Home to nav links
   const navLinks = [
-    { to: '/', label: 'Home', icon: Home, exact: true },
-    { to: '/products', label: 'Shop', exact: false },
+    { to: '/', label: 'Home', icon: Home, exact: true, customerOnly: false },
+    { to: '/products', label: 'Shop', exact: false, customerOnly: true },
   ]
 
   const isActive = (to, exact) => exact ? location.pathname === to : location.pathname.startsWith(to)
@@ -44,7 +44,7 @@ export default function Navbar() {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-1">
-            {navLinks.map(l => (
+            {navLinks.filter(l => !l.customerOnly || isCustomer).map(l => (
               <Link
                 key={l.to}
                 to={l.to}
@@ -62,7 +62,7 @@ export default function Navbar() {
           {/* Right Section */}
           <div className="flex items-center gap-2">
             {/* Cart - only for customers */}
-            {isLoggedIn && !isAdmin && (
+            {isLoggedIn && isCustomer && (
               <Link
                 to="/cart"
                 className="relative p-2.5 rounded-xl hover:bg-earth-100 transition-colors group"
@@ -177,7 +177,7 @@ export default function Navbar() {
         {/* Mobile Menu */}
         {mobileOpen && (
           <div className="md:hidden border-t border-earth-100 py-3 pb-4 space-y-1 animate-slide-up">
-            {navLinks.map(l => (
+            {navLinks.filter(l => !l.customerOnly || isCustomer).map(l => (
               <Link
                 key={l.to}
                 to={l.to}
