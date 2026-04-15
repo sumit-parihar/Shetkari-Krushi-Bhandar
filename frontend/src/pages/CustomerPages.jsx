@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import { Link } from 'react-router-dom'
 import { Package, Clock, Truck, CheckCircle, XCircle, ShoppingBag, MapPin, FileText } from 'lucide-react'
 import { dashboardAPI, orderAPI, addUpdateListener, removeUpdateListener } from '../services/api'
@@ -110,9 +109,6 @@ export function CustomerDashboardPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  useAutoRefresh(fetchStats, 5000)
-  if (loading) return <PageLoader />
-
   const cards = [
     { title: 'Total Orders', value: stats?.total_orders ?? 0, icon: Package,     color: 'earth' },
     { title: 'Pending',      value: stats?.pending      ?? 0, icon: Clock,       color: 'amber' },
@@ -186,7 +182,10 @@ export function OrdersPage() {
       .finally(() => setLoading(false))
   }, [page, status])
 
-  useAutoRefresh(fetchOrders, 5000, [page, status])
+  // Initial fetch on mount
+  useEffect(() => {
+    fetchOrders()
+  }, [fetchOrders])
 
   // Real-time updates via SSE
   useEffect(() => {

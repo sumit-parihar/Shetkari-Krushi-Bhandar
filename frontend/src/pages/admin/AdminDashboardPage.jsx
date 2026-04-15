@@ -1,11 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Package, ShoppingBag, Clock, Truck, CheckCircle,
   XCircle, DollarSign, AlertTriangle, ArrowRight, Tag, Users
 } from 'lucide-react'
 import { dashboardAPI, orderAPI, productAPI, authAPI } from '../../services/api'
-import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 import { StatsCard, PageLoader, StatusBadge } from '../../components/UI'
 import { formatCurrency, formatDateTime } from '../../utils/helpers'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -31,9 +30,10 @@ export default function AdminDashboardPage() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
-  useAutoRefresh(fetchAll, 5000)
-
-  if (loading) return <PageLoader />
+  // Initial fetch on mount
+  useEffect(() => {
+    fetchAll()
+  }, [fetchAll])
 
   const statusData = [
     { name: 'Pending', value: stats?.pending || 0, color: '#f59e0b' },

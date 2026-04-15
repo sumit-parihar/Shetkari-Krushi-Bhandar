@@ -329,6 +329,9 @@ async def assign_delivery_boy(order_id: int, request: Request, conn=Depends(get_
             (delivery_boy_id, order_id)
         )
         conn.commit()
+
+        await broadcast_update("delivery_boy_assigned", {"order_id": order_id, "delivery_boy_id": delivery_boy_id})
+
         return success_response(message="Delivery boy assigned successfully")
 
     except Exception:

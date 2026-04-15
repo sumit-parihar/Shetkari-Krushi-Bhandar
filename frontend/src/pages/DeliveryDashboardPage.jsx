@@ -1,5 +1,4 @@
 import { useState, useCallback, Fragment, useEffect } from 'react'
-import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import { Truck, MapPin, Package, CheckCircle, Clock, BarChart2 } from 'lucide-react'
 import { orderAPI, addUpdateListener, removeUpdateListener } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
@@ -73,13 +72,16 @@ export default function DeliveryDashboardPage() {
       .finally(() => setHistLoading(false))
   }, [histPage])
 
-  useAutoRefresh(fetchOrders, 5000, [page, statusFilter])
-  useAutoRefresh(fetchHistory, 10000, [histPage])
+  // Initial fetch on mount
+  useEffect(() => {
+    fetchOrders()
+    fetchHistory()
+  }, [fetchOrders, fetchHistory])
 
   // Real-time updates via SSE
   useEffect(() => {
     const handleUpdate = (update) => {
-      if (update.type === 'order_status_changed') {
+      if (update.type === 'order_status_changed' || update.type === 'delivery_boy_assigned') {
         fetchOrders()
         fetchHistory()
       }

@@ -1,7 +1,6 @@
 import { Fragment, useState, useCallback, useEffect } from 'react'
 import { Search, ChevronDown, Package, Truck } from 'lucide-react'
 import { orderAPI, authAPI, addUpdateListener, removeUpdateListener } from '../../services/api'
-import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 import { StatusBadge, Pagination, EmptyState, TableRowSkeleton, Modal, Spinner } from '../../components/UI'
 import { formatCurrency, formatDateTime, debounce } from '../../utils/helpers'
 import toast from 'react-hot-toast'
@@ -51,7 +50,10 @@ export default function AdminOrdersPage() {
       .finally(() => setLoading(false))
   }, [page, statusFilter, search])
 
-  useAutoRefresh(fetchOrders, 1000, [page, statusFilter, search])
+  // Initial fetch on mount
+  useEffect(() => {
+    fetchOrders()
+  }, [fetchOrders])
 
   // Real-time updates via SSE
   useEffect(() => {
