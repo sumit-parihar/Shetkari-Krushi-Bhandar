@@ -1,0 +1,101 @@
+USER MODULE
+
+User Registration
+
+User Login
+
+View User Profile
+
+Update User Profile
+
+Delete User Account
+
+View All Users (Admin)
+
+PRODUCT MODULE
+
+Add Product (Admin)
+
+View All Products
+
+View Product Details
+
+Update Product (Admin)
+
+Delete Product (Admin)
+
+View Products by Category
+
+CATEGORY MODULE
+
+Add Category
+
+View All Categories
+
+Update Category
+
+Delete Category
+
+CART MODULE
+
+Create Cart
+
+Add Product to Cart
+
+View Cart Items
+
+Update Cart Item Quantity
+
+Remove Item from Cart
+
+Clear Cart
+
+ORDER MODULE
+
+Place Order
+
+View User Orders
+
+View Order Details
+
+Update Order Status (Admin)
+
+Cancel Order
+
+INVENTORY / STOCK MODULE
+
+Add Stock
+
+Reduce Stock
+
+Track Stock Changes
+
+View Inventory Logs
+
+SEARCH & FILTER MODULE
+
+Search Products by Name
+
+Search by Keyword (name/description)
+
+Filter by Category
+
+Filter by Price Range
+
+Sort by Price (Low to High)
+
+Sort by Price (High to Low)
+
+View Low Stock Products
+
+View Out of Stock Products
+
+REPORT / ANALYTICS MODULE
+
+Total Number of Orders
+
+Total Sales Amount
+
+Best Selling Products
+
+Low Stock Report
