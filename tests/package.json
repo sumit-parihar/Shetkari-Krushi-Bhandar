@@ -1,0 +1,20 @@
+{
+  "name": "skb-playwright-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report reports",
+    "test:public": "playwright test e2e/01-public-pages.spec.js",
+    "test:auth": "playwright test e2e/02-auth.spec.js",
+    "test:customer": "playwright test e2e/03-customer-flows.spec.js",
+    "test:admin": "playwright test e2e/04-admin-flows.spec.js",
+    "test:admin": "playwright test e2e/04-admin-flows.spec.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0"
+  }
+}
