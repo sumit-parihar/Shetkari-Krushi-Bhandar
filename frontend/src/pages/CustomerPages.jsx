@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import { Link } from 'react-router-dom'
 import { Package, Clock, Truck, CheckCircle, XCircle, ShoppingBag, MapPin, FileText } from 'lucide-react'
-import { dashboardAPI, orderAPI } from '../services/api'
+import { dashboardAPI, orderAPI, addUpdateListener, removeUpdateListener } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { StatsCard, PageLoader, StatusBadge, EmptyState, Pagination, ConfirmDialog } from '../components/UI'
 import { formatCurrency, formatDateTime } from '../utils/helpers'
@@ -187,6 +187,17 @@ export function OrdersPage() {
   }, [page, status])
 
   useAutoRefresh(fetchOrders, 5000, [page, status])
+
+  // Real-time updates via SSE
+  useEffect(() => {
+    const handleUpdate = (update) => {
+      if (update.type === 'order_status_changed') {
+        fetchOrders()
+      }
+    }
+    addUpdateListener(handleUpdate)
+    return () => removeUpdateListener(handleUpdate)
+  }, [fetchOrders])
 
   const handleCancel = async () => {
     try {

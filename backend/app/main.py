@@ -1,9 +1,11 @@
 from pathlib import Path
 import logging
 import sys
+import asyncio
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 import os
 from dotenv import load_dotenv
 
@@ -18,11 +20,14 @@ _backend_dir = Path(__file__).resolve().parent.parent
 load_dotenv(_backend_dir / ".env")
 load_dotenv(_backend_dir / "app" / "utils" / ".env")
 
-# Import routers (we will create these next)
+# Import routers
 from app.api.routes import auth, product, cart, order, dashboard, categories
 
 # Import DB connection
 from app.db.connection import get_db_connection
+
+# Import SSE subscriber manager (to avoid circular import)
+from app.utils.sse import subscribers
 
 app = FastAPI()
 
@@ -55,6 +60,47 @@ app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 @app.get("/")
 def home():
     return {"message": "Backend is running!"}
+
+
+# -----------------------------
+# SSE REAL-TIME UPDATES
+# -----------------------------
+@app.get("/stream/updates")
+async def stream_updates(request: Request):
+    """Server-Sent Events endpoint for real-time updates"""
+    queue = asyncio.Queue()
+    subscribers.add(queue)
+
+    async def event_generator():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                message = await queue.get()
+                yield message
+        finally:
+            subscribers.remove(queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+# -----------------------------
+# HELPER: Broadcast update
+# -----------------------------
+async def broadcast_update(event_type: str, data: dict):
+    """Broadcast an update to all connected SSE clients"""
+    await subscribers.broadcast({
+        "type": event_type,
+        "data": data
+    })
 
 # -----------------------------
 # TEST DB (same logic)

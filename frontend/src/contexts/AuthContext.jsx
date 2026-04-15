@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { authAPI } from '../services/api'
+import { authAPI, connectRealTimeUpdates, disconnectRealTimeUpdates } from '../services/api'
 import toast from 'react-hot-toast'
 
 const AuthContext = createContext(null)
@@ -67,6 +67,18 @@ export function AuthProvider({ children }) {
   const isCustomer = user?.role === 'customer'
   const isDeliveryBoy = user?.role === 'delivery_boy'
   const isLoggedIn = !!user
+
+  // Connect to SSE real-time updates when logged in
+  useEffect(() => {
+    if (isLoggedIn) {
+      connectRealTimeUpdates((update) => {
+        console.log('[SSE] Real-time update:', update)
+      })
+    } else {
+      disconnectRealTimeUpdates()
+    }
+    return () => disconnectRealTimeUpdates()
+  }, [isLoggedIn])
 
   return (
     <AuthContext.Provider value={{ user, login, register, logout, loading, isAdmin, isCustomer, isDeliveryBoy, isLoggedIn }}>

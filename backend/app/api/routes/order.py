@@ -4,6 +4,7 @@ from app.utils.response import success_response, error_response
 from app.utils.validators import validate_page_limit
 from app.dependencies.auth import require_user, require_admin, require_customer, require_delivery_boy
 from app.utils.roles import normalize_role
+from app.utils.sse import broadcast_update
 
 router = APIRouter()
 
@@ -64,6 +65,9 @@ async def place_order(request: Request, conn=Depends(get_db), user=Depends(requi
 
         conn.execute("DELETE FROM Cart_Items WHERE cart_id = ?", (cart_id,))
         conn.commit()
+
+        # Broadcast new order to all connected clients
+        await broadcast_update("new_order", {"order_id": order_id, "user_id": user_id})
 
         return success_response(data={"order_id": order_id}, message=f"Order placed successfully with order_id {order_id}")
 
@@ -190,6 +194,10 @@ async def update_order_status(order_id: int, request: Request, conn=Depends(get_
 
         conn.execute("UPDATE Orders SET order_status = ? WHERE order_id = ?", (status, order_id))
         conn.commit()
+
+        # Broadcast status update to all connected clients
+        await broadcast_update("order_status_changed", {"order_id": order_id, "new_status": status})
+
         return success_response(message="Order status updated successfully")
 
     except Exception:
@@ -529,6 +537,10 @@ async def delivery_boy_update_status(order_id: int, request: Request, conn=Depen
 
         conn.execute("UPDATE Orders SET order_status = ? WHERE order_id = ?", (new_status, order_id))
         conn.commit()
+
+        # Broadcast status update to all connected clients
+        await broadcast_update("order_status_changed", {"order_id": order_id, "new_status": new_status})
+
         return success_response(message=f"Order marked as {new_status}")
 
     except Exception:

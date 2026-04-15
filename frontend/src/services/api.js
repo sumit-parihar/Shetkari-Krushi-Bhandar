@@ -5,6 +5,66 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 // BUG FIX: match sessionStorage used in AuthContext
 const storage = sessionStorage
 
+// SSE EventSource for real-time updates
+let eventSource = null
+const updateListeners = new Set()
+
+/**
+ * Connect to SSE stream for real-time updates
+ * Call this once in your main app component or AuthContext
+ */
+export function connectRealTimeUpdates(onUpdate) {
+  if (eventSource) {
+    if (onUpdate) updateListeners.add(onUpdate)
+    return eventSource
+  }
+
+  const token = storage.getItem('skb_token')
+  if (!token) return null
+
+  eventSource = new EventSource(`${BASE_URL}/stream/updates`)
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      // Notify all registered listeners
+      updateListeners.forEach(listener => listener(data))
+    } catch (e) {
+      console.error('SSE parse error:', e)
+    }
+  }
+
+  eventSource.onerror = (err) => {
+    console.error('SSE connection error:', err)
+    // Reconnect logic handled by EventSource automatically
+  }
+
+  if (onUpdate) updateListeners.add(onUpdate)
+  return eventSource
+}
+
+/**
+ * Disconnect from SSE stream
+ */
+export function disconnectRealTimeUpdates() {
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
+    updateListeners.clear()
+  }
+}
+
+/**
+ * Add/remove individual listeners dynamically
+ */
+export function addUpdateListener(listener) {
+  updateListeners.add(listener)
+}
+
+export function removeUpdateListener(listener) {
+  updateListeners.delete(listener)
+}
+
 const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },

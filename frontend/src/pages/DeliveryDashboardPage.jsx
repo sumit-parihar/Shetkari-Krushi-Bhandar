@@ -1,7 +1,7 @@
-import { useState, useCallback, Fragment } from 'react'
+import { useState, useCallback, Fragment, useEffect } from 'react'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import { Truck, MapPin, Package, CheckCircle, Clock, BarChart2 } from 'lucide-react'
-import { orderAPI } from '../services/api'
+import { orderAPI, addUpdateListener, removeUpdateListener } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { StatusBadge, Pagination, EmptyState, TableRowSkeleton } from '../components/UI'
 import { formatCurrency, formatDateTime } from '../utils/helpers'
@@ -75,6 +75,18 @@ export default function DeliveryDashboardPage() {
 
   useAutoRefresh(fetchOrders, 5000, [page, statusFilter])
   useAutoRefresh(fetchHistory, 10000, [histPage])
+
+  // Real-time updates via SSE
+  useEffect(() => {
+    const handleUpdate = (update) => {
+      if (update.type === 'order_status_changed') {
+        fetchOrders()
+        fetchHistory()
+      }
+    }
+    addUpdateListener(handleUpdate)
+    return () => removeUpdateListener(handleUpdate)
+  }, [fetchOrders, fetchHistory])
 
   const markDelivered = async (orderId) => {
     setMarkingId(orderId)

@@ -1,6 +1,6 @@
 import { Fragment, useState, useCallback, useEffect } from 'react'
 import { Search, ChevronDown, Package, Truck } from 'lucide-react'
-import { orderAPI, authAPI } from '../../services/api'
+import { orderAPI, authAPI, addUpdateListener, removeUpdateListener } from '../../services/api'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 import { StatusBadge, Pagination, EmptyState, TableRowSkeleton, Modal, Spinner } from '../../components/UI'
 import { formatCurrency, formatDateTime, debounce } from '../../utils/helpers'
@@ -52,6 +52,17 @@ export default function AdminOrdersPage() {
   }, [page, statusFilter, search])
 
   useAutoRefresh(fetchOrders, 1000, [page, statusFilter, search])
+
+  // Real-time updates via SSE
+  useEffect(() => {
+    const handleUpdate = (update) => {
+      if (update.type === 'new_order' || update.type === 'order_status_changed') {
+        fetchOrders()
+      }
+    }
+    addUpdateListener(handleUpdate)
+    return () => removeUpdateListener(handleUpdate)
+  }, [fetchOrders])
 
   // Fetch delivery boys once for the assign modal
   useEffect(() => {
