@@ -74,7 +74,7 @@ async def login(request: Request, conn=Depends(get_db)):
         email_in = str(data["email"]).strip()
         user = conn.execute(
             """
-            SELECT user_id, name, email, password, role FROM Users
+            SELECT user_id, name, email, password, phone, address, role FROM Users
             WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))
             """,
             (email_in,),
@@ -93,6 +93,8 @@ async def login(request: Request, conn=Depends(get_db)):
                     "name": user["name"],
                     "email": user["email"],
                     "role": role,
+                    "phone": user["phone"],
+                    "address": user["address"]
                 }
             },
             message="Login successful"
