@@ -97,3 +97,5 @@ pnpm-debug.log*
 
 # Tests
 tests/
+
+.qwen/
