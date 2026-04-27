@@ -94,3 +94,6 @@ pnpm-debug.log*
 *.tmp
 *.temp
 .cache/
+
+# Tests
+tests/

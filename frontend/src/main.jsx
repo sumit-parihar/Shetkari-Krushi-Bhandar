@@ -5,7 +5,15 @@ import { Toaster, ToastBar, toast } from 'react-hot-toast'
 import { X } from 'lucide-react'
 import App from './App'
 import './index.css'
-
+import i18n from './i18n'
+ 
+// Sync <html lang="..."> with i18next so CSS & screen readers respond to language changes
+const syncLang = (lng) => {
+  document.documentElement.lang = lng?.startsWith('mr') ? 'mr' : 'en'
+}
+syncLang(i18n.language)
+i18n.on('languageChanged', syncLang)
+ 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -53,3 +61,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>
 )
+ 

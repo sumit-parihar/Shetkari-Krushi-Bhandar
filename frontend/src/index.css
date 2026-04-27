@@ -1,43 +1,47 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
+ 
 @layer base {
   * {
     box-sizing: border-box;
   }
-
+ 
   html {
     scroll-behavior: smooth;
   }
-
+ 
+  html[lang="mr"] body {
+    font-family: 'Noto Sans Devanagari', 'DM Sans', sans-serif;
+  }
+ 
   body {
     @apply bg-cream text-bark font-body antialiased;
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23b87333' fill-opacity='0.025'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
-
+ 
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-
+ 
   ::-webkit-scrollbar-track {
     @apply bg-earth-100;
   }
-
+ 
   ::-webkit-scrollbar-thumb {
     @apply bg-earth-400 rounded-full;
   }
-
+ 
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-earth-500;
   }
-
+ 
   ::selection {
     @apply bg-leaf-200 text-leaf-900;
   }
 }
-
+ 
 @layer components {
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-leaf-600 text-white font-medium rounded-lg 
@@ -45,117 +49,122 @@
            focus:outline-none focus:ring-2 focus:ring-leaf-500 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-leaf-600;
   }
-
+ 
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-earth-100 text-earth-800 font-medium rounded-lg 
            hover:bg-earth-200 active:bg-earth-300 border border-earth-200 transition-all duration-200
            focus:outline-none focus:ring-2 focus:ring-earth-400 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
-
+ 
   .btn-danger {
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-red-600 text-white font-medium rounded-lg 
            hover:bg-red-700 active:bg-red-800 transition-all duration-200 
            focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
-
+ 
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-earth-700 font-medium rounded-lg 
            hover:bg-earth-100 active:bg-earth-200 transition-all duration-200
            focus:outline-none focus:ring-2 focus:ring-earth-300 focus:ring-offset-1
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
-
+ 
   .input-field {
     @apply w-full px-4 py-3 bg-white border border-earth-200 rounded-lg text-bark placeholder-earth-400
            focus:outline-none focus:ring-2 focus:ring-leaf-400 focus:border-leaf-400 
            transition-all duration-200 font-body;
   }
-
+ 
   .card {
     @apply bg-white rounded-xl border border-earth-100 shadow-warm overflow-hidden;
   }
-
+ 
   .card-hover {
     @apply card hover:shadow-warm-lg hover:-translate-y-0.5 transition-all duration-300;
   }
-
+ 
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
-
+ 
   .badge-pending {
     @apply badge bg-amber-100 text-amber-800;
   }
-
+ 
   .badge-shipped {
     @apply badge bg-blue-100 text-blue-800;
   }
-
+ 
   .badge-delivered {
     @apply badge bg-leaf-100 text-leaf-800;
   }
-
+ 
   .badge-cancelled {
     @apply badge bg-red-100 text-red-800;
   }
-
+ 
   .section-title {
     @apply font-display text-2xl font-semibold text-bark;
   }
-
+ 
   .page-header {
     @apply font-display text-3xl md:text-4xl font-bold text-bark;
   }
-
+ 
   .skeleton {
     @apply bg-gradient-to-r from-earth-100 via-earth-50 to-earth-100 bg-[length:200%_100%] animate-shimmer rounded;
   }
-
+ 
   .table-header {
     @apply text-xs font-semibold uppercase tracking-wider text-earth-500 bg-earth-50 px-4 py-3;
   }
-
+ 
   .table-cell {
     @apply px-4 py-3.5 text-sm text-bark border-b border-earth-50;
   }
-
+ 
   .nav-link {
     @apply flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-earth-600 hover:text-leaf-700 hover:bg-leaf-50
            transition-all duration-200 font-medium text-sm;
   }
-
+ 
   .nav-link-active {
     @apply flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-leaf-700 bg-leaf-50 font-semibold text-sm;
   }
 }
-
+ 
 /* Product card image placeholder */
 .product-img-placeholder {
   background: linear-gradient(135deg, #f2e8d9 0%, #e5cfb0 50%, #d4af80 100%);
 }
-
+ 
 /* Decorative divider */
 .divider-leaf::before {
   content: '🌿';
   @apply block text-center text-lg opacity-40 my-4;
 }
-
+ 
 /* Toast overrides */
 .go3958317564 {
   @apply font-body !important;
 }
-
+ 
 /* Animated gradient for hero */
 @keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
-
+ 
 .hero-gradient {
   background: linear-gradient(-45deg, #faf6f0, #e5cfb0, #c3e2b2, #faf6f0);
   background-size: 400% 400%;
   animation: gradientShift 12s ease infinite;
+}
+ 
+/* Devanagari font utility for Marathi script */
+.font-devanagari {
+  font-family: 'Noto Sans Devanagari', sans-serif;
 }
