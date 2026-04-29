@@ -1,30 +1,32 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { Trash2, ShoppingBag, ArrowRight, Minus, Plus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useCart } from '../contexts/CartContext'
 import { formatCurrency } from '../utils/helpers'
 import { EmptyState, Spinner } from '../components/UI'
-
+ 
 export default function CartPage() {
+  const { t } = useTranslation()
   const { cart, loading, updateQuantity, removeFromCart, total } = useCart()
   const navigate = useNavigate()
-
+ 
   if (cart.items.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 animate-fade-in">
         <EmptyState
-          title="Your cart is empty"
-          desc="Browse our products and add items to your cart"
+          title={t('cart.empty')}
+          desc={t('cart.emptySubtitle')}
           icon={ShoppingBag}
-          action={<Link to="/products" className="btn-primary">Shop Now</Link>}
+          action={<Link to="/products" className="btn-primary">{t('cart.shopNow')}</Link>}
         />
       </div>
     )
   }
-
+ 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 animate-fade-in">
-      <h1 className="page-header mb-6">Shopping Cart</h1>
-
+      <h1 className="page-header mb-6">{t('cart.title')}</h1>
+ 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Items */}
         <div className="lg:col-span-2 space-y-3">
@@ -38,7 +40,7 @@ export default function CartPage() {
                   <div className="w-full h-full product-img-placeholder flex items-center justify-center text-2xl">🌾</div>
                 )}
               </div>
-
+ 
               {/* Details */}
               <div className="flex-1 min-w-0">
                 <Link to={`/products/${item.product_id}`} className="font-display font-semibold text-bark hover:text-leaf-600 transition-colors line-clamp-2 text-sm">
@@ -46,10 +48,12 @@ export default function CartPage() {
                 </Link>
                 <p className="text-leaf-700 font-bold mt-1">{formatCurrency(item.price)}</p>
                 {item.quantity > item.stock_quantity && (
-                  <p className="text-xs text-amber-600 mt-1">⚠ Only {item.stock_quantity} in stock</p>
+                  <p className="text-xs text-amber-600 mt-1">
+                    {t('cart.onlyLeft', { count: item.stock_quantity })}
+                  </p>
                 )}
               </div>
-
+ 
               {/* Controls */}
               <div className="flex flex-col items-end gap-2">
                 <button
@@ -84,11 +88,11 @@ export default function CartPage() {
             </div>
           ))}
         </div>
-
+ 
         {/* Order Summary */}
         <div>
           <div className="card p-6 sticky top-20">
-            <h2 className="font-display font-semibold text-lg text-bark mb-5">Order Summary</h2>
+            <h2 className="font-display font-semibold text-lg text-bark mb-5">{t('cart.orderSummary')}</h2>
             <div className="space-y-3 mb-5">
               {cart.items.map(item => (
                 <div key={item.cart_item_id} className="flex justify-between text-sm">
@@ -99,19 +103,19 @@ export default function CartPage() {
             </div>
             <div className="border-t border-earth-100 pt-4 mb-5">
               <div className="flex justify-between items-center">
-                <span className="font-semibold text-bark">Total</span>
+                <span className="font-semibold text-bark">{t('cart.total')}</span>
                 <span className="font-display font-bold text-xl text-leaf-700">{formatCurrency(total)}</span>
               </div>
-              <p className="text-xs text-earth-400 mt-1">Cash on Delivery</p>
+              <p className="text-xs text-earth-400 mt-1">{t('cart.cod')}</p>
             </div>
             <button
               onClick={() => navigate('/checkout')}
               className="btn-primary w-full py-3.5 text-base"
             >
-              Proceed to Checkout <ArrowRight className="w-5 h-5" />
+              {t('cart.proceedToCheckout')} <ArrowRight className="w-5 h-5" />
             </button>
             <Link to="/products" className="block text-center text-sm text-earth-500 hover:text-leaf-600 mt-3 transition-colors">
-              Continue Shopping
+              {t('cart.continueShopping')}
             </Link>
           </div>
         </div>
@@ -119,3 +123,4 @@ export default function CartPage() {
     </div>
   )
 }
+ 

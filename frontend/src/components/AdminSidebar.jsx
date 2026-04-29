@@ -1,16 +1,19 @@
 import { NavLink } from 'react-router-dom'
 import { LayoutDashboard, Package, ShoppingBag, Users, Tag, Leaf, ChevronRight, BarChart2 } from 'lucide-react'
-
-const links = [
-  { to: '/admin',          label: 'Dashboard',  icon: LayoutDashboard, end: true },
-  { to: '/admin/products', label: 'Products',   icon: Package },
-  { to: '/admin/categories', label: 'Categories', icon: Tag },
-  { to: '/admin/orders',   label: 'Orders',     icon: ShoppingBag },
-  { to: '/admin/users',    label: 'Users',      icon: Users },
-  { to: '/admin/reports',  label: 'Reports',    icon: BarChart2 },
-]
-
+import { useTranslation } from 'react-i18next'
+ 
 export default function AdminSidebar() {
+  const { t } = useTranslation()
+ 
+  const links = [
+    { to: '/admin',            label: t('admin.sidebar.dashboard'),   icon: LayoutDashboard, end: true },
+    { to: '/admin/products',   label: t('admin.sidebar.products'),    icon: Package },
+    { to: '/admin/categories', label: t('admin.sidebar.categories'),  icon: Tag },
+    { to: '/admin/orders',     label: t('admin.sidebar.orders'),      icon: ShoppingBag },
+    { to: '/admin/users',      label: t('admin.sidebar.users'),       icon: Users },
+    { to: '/admin/reports',    label: t('admin.sidebar.reports'),     icon: BarChart2 },
+  ]
+ 
   return (
     <aside className="w-60 shrink-0 hidden lg:flex flex-col bg-white border-r border-earth-100 min-h-[calc(100vh-4rem)] sticky top-16">
       <div className="p-4 border-b border-earth-100">
@@ -19,8 +22,8 @@ export default function AdminSidebar() {
             <Leaf className="w-4 h-4 text-soil-600" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-bark">Admin Panel</p>
-            <p className="text-[10px] text-earth-400">Management Console</p>
+            <p className="text-xs font-semibold text-bark">{t('admin.sidebar.title')}</p>
+            <p className="text-[10px] text-earth-400">{t('admin.sidebar.subtitle')}</p>
           </div>
         </div>
       </div>
@@ -47,9 +50,19 @@ export default function AdminSidebar() {
     </aside>
   )
 }
-
-// Mobile admin nav
+ 
 export function AdminMobileNav() {
+  const { t } = useTranslation()
+ 
+  const links = [
+    { to: '/admin',            label: t('admin.sidebar.dashboard'),   icon: LayoutDashboard, end: true },
+    { to: '/admin/products',   label: t('admin.sidebar.products'),    icon: Package },
+    { to: '/admin/categories', label: t('admin.sidebar.categories'),  icon: Tag },
+    { to: '/admin/orders',     label: t('admin.sidebar.orders'),      icon: ShoppingBag },
+    { to: '/admin/users',      label: t('admin.sidebar.users'),       icon: Users },
+    { to: '/admin/reports',    label: t('admin.sidebar.reports'),     icon: BarChart2 },
+  ]
+ 
   return (
     <div className="lg:hidden flex overflow-x-auto gap-1 px-4 py-2 border-b border-earth-100 bg-white">
       {links.map(({ to, label, icon: Icon, end }) => (
@@ -70,3 +83,4 @@ export function AdminMobileNav() {
     </div>
   )
 }
+ 

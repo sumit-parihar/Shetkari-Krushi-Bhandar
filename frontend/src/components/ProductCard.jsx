@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShoppingCart, Eye, AlertTriangle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useCart } from '../contexts/CartContext'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency, truncate } from '../utils/helpers'
 import { Spinner } from './UI'
-
+ 
 export default function ProductCard({ product }) {
-  const { addToCart, loading } = useCart()
+  const { t } = useTranslation()
+  const { addToCart } = useCart()
   const { isLoggedIn, isCustomer } = useAuth()
   const [adding, setAdding] = useState(false)
-
+ 
   const handleAdd = async (e) => {
     e.preventDefault()
     if (!isLoggedIn || !isCustomer) return
@@ -18,10 +20,10 @@ export default function ProductCard({ product }) {
     await addToCart(product.product_id, 1)
     setAdding(false)
   }
-
+ 
   const isOutOfStock = product.stock_quantity === 0
   const isLowStock = product.stock_quantity > 0 && product.stock_quantity < 10
-
+ 
   return (
     <Link to={`/products/${product.product_id}`} className="card-hover block group">
       {/* Image */}
@@ -40,7 +42,9 @@ export default function ProductCard({ product }) {
         )}
         {isOutOfStock && (
           <div className="absolute inset-0 bg-bark/50 flex items-center justify-center">
-            <span className="bg-white text-bark text-xs font-semibold px-3 py-1 rounded-full">Out of Stock</span>
+            <span className="bg-white text-bark text-xs font-semibold px-3 py-1 rounded-full">
+              {t('productCard.outOfStock')}
+            </span>
           </div>
         )}
         {product.category_name && (
@@ -49,27 +53,29 @@ export default function ProductCard({ product }) {
           </span>
         )}
       </div>
-
+ 
       {/* Content */}
       <div className="p-4">
         <h3 className="font-display font-semibold text-bark text-sm leading-snug mb-1 group-hover:text-leaf-700 transition-colors">
           {truncate(product.name, 50)}
         </h3>
-
+ 
         {isLowStock && (
           <div className="flex items-center gap-1 text-amber-600 mb-2">
             <AlertTriangle className="w-3 h-3" />
-            <span className="text-[10px] font-medium">Only {product.stock_quantity} left</span>
+            <span className="text-[10px] font-medium">
+              {t('productCard.onlyLeft', { count: product.stock_quantity })}
+            </span>
           </div>
         )}
-
+ 
         <div className="flex items-center justify-between mt-2">
           <span className="font-display font-bold text-leaf-700 text-lg">
             {formatCurrency(product.price)}
           </span>
           <div className="flex items-center gap-1.5">
             <span className="hidden group-hover:flex items-center gap-1 text-[10px] text-earth-500 border border-earth-200 rounded-lg px-2 py-1 transition-all">
-              <Eye className="w-3 h-3" /> View
+              <Eye className="w-3 h-3" /> {t('productCard.view')}
             </span>
             {isCustomer && (
               <button
@@ -80,7 +86,7 @@ export default function ProductCard({ product }) {
                     ? 'bg-earth-100 text-earth-300 cursor-not-allowed'
                     : 'bg-leaf-600 text-white hover:bg-leaf-700 active:scale-95 shadow-leaf'
                 }`}
-                title="Add to cart"
+                title={t('productCard.addToCart')}
               >
                 {adding ? <Spinner size="sm" /> : <ShoppingCart className="w-4 h-4" />}
               </button>
@@ -91,3 +97,4 @@ export default function ProductCard({ product }) {
     </Link>
   )
 }
+ 

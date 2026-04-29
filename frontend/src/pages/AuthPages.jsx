@@ -1,40 +1,39 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Leaf, Eye, EyeOff, Mail, Lock, User, Phone, MapPin } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/UI'
-
+ 
 // ─── Login Page ────────────────────────────────────────
 export function LoginPage() {
+  const { t } = useTranslation()
   const { login, loading } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPw, setShowPw] = useState(false)
   const [errors, setErrors] = useState({})
-
+ 
   const validate = () => {
     const e = {}
-    if (!form.email.trim()) e.email = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Invalid email'
-    if (!form.password) e.password = 'Password is required'
+    if (!form.email.trim()) e.email = t('auth.validation.emailRequired')
+    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = t('auth.validation.emailInvalid')
+    if (!form.password) e.password = t('auth.validation.passwordRequired')
     setErrors(e)
     return Object.keys(e).length === 0
   }
-
+ 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) return
     const result = await login(form.email, form.password)
-    // Fix 1: Always go to home page after login
-    if (result.success) {
-      navigate('/')
-    }
+    if (result.success) navigate('/')
   }
-
+ 
   return (
-    <AuthLayout title="Welcome back" subtitle="Sign in to your account">
+    <AuthLayout title={t('auth.login.title')} subtitle={t('auth.login.subtitle')}>
       <form onSubmit={handleSubmit} className="space-y-5">
-        <Field label="Email" icon={Mail} error={errors.email}>
+        <Field label={t('auth.login.email')} icon={Mail} error={errors.email}>
           <input
             type="email"
             className={`input-field pl-10 ${errors.email ? 'border-red-400 focus:ring-red-400' : ''}`}
@@ -43,11 +42,11 @@ export function LoginPage() {
             onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
           />
         </Field>
-        <Field label="Password" icon={Lock} error={errors.password}>
+        <Field label={t('auth.login.password')} icon={Lock} error={errors.password}>
           <input
             type={showPw ? 'text' : 'password'}
             className={`input-field pl-10 pr-10 ${errors.password ? 'border-red-400 focus:ring-red-400' : ''}`}
-            placeholder="Your password"
+            placeholder={t('auth.login.passwordPlaceholder')}
             value={form.password}
             onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
           />
@@ -60,60 +59,63 @@ export function LoginPage() {
           </button>
         </Field>
         <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-base">
-          {loading ? <Spinner size="sm" /> : 'Sign In'}
+          {loading ? <Spinner size="sm" /> : t('auth.login.signIn')}
         </button>
       </form>
       <p className="text-center text-sm text-earth-500 mt-6">
-        Don't have an account?{' '}
-        <Link to="/register" className="text-leaf-600 font-semibold hover:text-leaf-700">Create one</Link>
+        {t('auth.login.noAccount')}{' '}
+        <Link to="/register" className="text-leaf-600 font-semibold hover:text-leaf-700">
+          {t('auth.login.createOne')}
+        </Link>
       </p>
     </AuthLayout>
   )
 }
-
+ 
 // ─── Register Page ─────────────────────────────────────
 export function RegisterPage() {
+  const { t } = useTranslation()
   const { register, loading } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', phone: '', address: '' })
   const [showPw, setShowPw] = useState(false)
   const [errors, setErrors] = useState({})
-
+ 
   const validate = () => {
     const e = {}
-    if (!form.name.trim()) e.name = 'Name is required'
-    if (!form.email.trim()) e.email = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Invalid email'
-    if (!form.phone.trim()) e.phone = 'Phone number is required'
-    else if (!/^[6-9]\d{9}$/.test(form.phone.trim())) e.phone = 'Enter valid 10-digit mobile number'
-    if (!form.address.trim()) e.address = 'Address is required'
-    if (!form.password) e.password = 'Password is required'
-    else if (form.password.length < 6) e.password = 'At least 6 characters'
-    if (form.password !== form.confirm) e.confirm = 'Passwords do not match'
+    if (!form.name.trim()) e.name = t('auth.validation.nameRequired')
+    if (!form.email.trim()) e.email = t('auth.validation.emailRequired')
+    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = t('auth.validation.emailInvalid')
+    if (!form.phone.trim()) e.phone = t('auth.validation.phoneRequired')
+    else if (!/^[6-9]\d{9}$/.test(form.phone.trim())) e.phone = t('auth.validation.phoneInvalid')
+    if (!form.address.trim()) e.address = t('auth.validation.addressRequired')
+    if (!form.password) e.password = t('auth.validation.passwordRequired')
+    else if (form.password.length < 6) e.password = t('auth.validation.passwordMinLength')
+    if (form.password !== form.confirm) e.confirm = t('auth.validation.passwordMismatch')
     setErrors(e)
     return Object.keys(e).length === 0
   }
-
+ 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) return
     const result = await register(form.name, form.email, form.password, form.phone, form.address)
     if (result.success) navigate('/login')
   }
-
+ 
   return (
-    <AuthLayout title="Create account" subtitle="Join Shetkari Krushi Bhandar today">
+    <AuthLayout title={t('auth.register.title')} subtitle={t('auth.register.subtitle')}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="Full Name" icon={User} error={errors.name}>
+        <Field label={t('auth.register.fullName')} icon={User} error={errors.name}>
           <input
             type="text"
             className={`input-field pl-10 ${errors.name ? 'border-red-400 focus:ring-red-400' : ''}`}
-            placeholder="Your full name"
+            placeholder={t('auth.register.namePlaceholder')}
             value={form.name}
             onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
           />
         </Field>
-        <Field label="Email" icon={Mail} error={errors.email}>
+        <Field label={t('auth.register.email')} icon={Mail} error={errors.email}>
           <input
             type="email"
             className={`input-field pl-10 ${errors.email ? 'border-red-400 focus:ring-red-400' : ''}`}
@@ -122,7 +124,7 @@ export function RegisterPage() {
             onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
           />
         </Field>
-        <Field label="Phone Number" icon={Phone} error={errors.phone}>
+        <Field label={t('auth.register.phone')} icon={Phone} error={errors.phone}>
           <input
             type="tel"
             className={`input-field pl-10 ${errors.phone ? 'border-red-400 focus:ring-red-400' : ''}`}
@@ -133,24 +135,24 @@ export function RegisterPage() {
           />
         </Field>
         <div>
-          <label className="block text-sm font-medium text-bark mb-1.5">Address</label>
+          <label className="block text-sm font-medium text-bark mb-1.5">{t('auth.register.address')}</label>
           <div className="relative">
             <MapPin className="absolute left-3 top-3 w-4 h-4 text-earth-400 pointer-events-none" />
             <textarea
               className={`input-field pl-10 resize-none ${errors.address ? 'border-red-400 focus:ring-red-400' : ''}`}
               rows={2}
-              placeholder="Village / Town, Taluka, District, PIN"
+              placeholder={t('auth.register.addressPlaceholder')}
               value={form.address}
               onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
             />
           </div>
           {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
         </div>
-        <Field label="Password" icon={Lock} error={errors.password}>
+        <Field label={t('auth.register.password')} icon={Lock} error={errors.password}>
           <input
             type={showPw ? 'text' : 'password'}
             className={`input-field pl-10 pr-10 ${errors.password ? 'border-red-400 focus:ring-red-400' : ''}`}
-            placeholder="Create a password"
+            placeholder={t('auth.register.createPasswordPlaceholder')}
             value={form.password}
             onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
           />
@@ -158,27 +160,29 @@ export function RegisterPage() {
             {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </Field>
-        <Field label="Confirm Password" icon={Lock} error={errors.confirm}>
+        <Field label={t('auth.register.confirmPassword')} icon={Lock} error={errors.confirm}>
           <input
             type="password"
             className={`input-field pl-10 ${errors.confirm ? 'border-red-400 focus:ring-red-400' : ''}`}
-            placeholder="Repeat password"
+            placeholder={t('auth.register.repeatPasswordPlaceholder')}
             value={form.confirm}
             onChange={e => setForm(p => ({ ...p, confirm: e.target.value }))}
           />
         </Field>
         <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-base">
-          {loading ? <Spinner size="sm" /> : 'Create Account'}
+          {loading ? <Spinner size="sm" /> : t('auth.register.createAccount')}
         </button>
       </form>
       <p className="text-center text-sm text-earth-500 mt-6">
-        Already have an account?{' '}
-        <Link to="/login" className="text-leaf-600 font-semibold hover:text-leaf-700">Sign in</Link>
+        {t('auth.register.hasAccount')}{' '}
+        <Link to="/login" className="text-leaf-600 font-semibold hover:text-leaf-700">
+          {t('auth.register.signIn')}
+        </Link>
       </p>
     </AuthLayout>
   )
 }
-
+ 
 // ─── Shared Layout ─────────────────────────────────────
 function AuthLayout({ title, subtitle, children }) {
   return (
@@ -196,7 +200,7 @@ function AuthLayout({ title, subtitle, children }) {
     </div>
   )
 }
-
+ 
 // ─── Field Helper ──────────────────────────────────────
 function Field({ label, icon: Icon, error, children }) {
   return (
@@ -210,3 +214,4 @@ function Field({ label, icon: Icon, error, children }) {
     </div>
   )
 }
+ 
