@@ -46,7 +46,7 @@ export function LoginPage() {
           <input
             type={showPw ? 'text' : 'password'}
             className={`input-field pl-10 pr-10 ${errors.password ? 'border-red-400 focus:ring-red-400' : ''}`}
-            placeholder={t('auth.login.passwordPlaceholder')}
+            placeholder={t('password')}
             value={form.password}
             onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
           />
