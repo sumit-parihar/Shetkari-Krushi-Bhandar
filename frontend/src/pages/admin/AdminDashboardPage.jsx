@@ -5,13 +5,13 @@ import {
   XCircle, IndianRupee, AlertTriangle, ArrowRight, Tag, Users
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { dashboardAPI, orderAPI, productAPI, authAPI } from '../../services/api'
+import { dashboardAPI, orderAPI, productAPI, authAPI, addUpdateListener, removeUpdateListener } from '../../services/api'
 import { StatsCard, PageLoader, StatusBadge } from '../../components/UI'
 import { formatCurrency, formatDateTime } from '../../utils/helpers'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import i18n from '../../i18n'
 import toast from 'react-hot-toast'
- 
+
 export default function AdminDashboardPage() {
   const { t } = useTranslation()
   const [stats, setStats]                   = useState(null)
@@ -19,7 +19,7 @@ export default function AdminDashboardPage() {
   const [lowStockProducts, setLowStockProducts] = useState([])
   const [totalUsers, setTotalUsers]         = useState(0)
   const [loading, setLoading]               = useState(true)
- 
+
   const fetchAll = useCallback(() => {
     Promise.all([
       dashboardAPI.admin(),
@@ -33,16 +33,27 @@ export default function AdminDashboardPage() {
       setTotalUsers(usersRes.data.data?.total || 0)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
- 
+
   useEffect(() => { fetchAll() }, [fetchAll])
- 
+
+  // Re-fetch when any order event arrives via SSE
+  useEffect(() => {
+    const handleUpdate = (update) => {
+      if (update.type === 'new_order' || update.type === 'order_status_changed') {
+        fetchAll()
+      }
+    }
+    addUpdateListener(handleUpdate)
+    return () => removeUpdateListener(handleUpdate)
+  }, [fetchAll])
+
   const statusData = [
     { name: t('status.pending'),   value: stats?.pending   || 0, color: '#f59e0b' },
     { name: t('status.shipped'),   value: stats?.shipped   || 0, color: '#3b82f6' },
     { name: t('status.delivered'), value: stats?.delivered || 0, color: '#4a9635' },
     { name: t('status.cancelled'), value: stats?.cancelled || 0, color: '#ef4444' },
   ]
- 
+
   const cards = [
     { title: t('admin.dashboard.totalRevenue'), value: formatCurrency(stats?.revenue || 0), icon: IndianRupee, color: 'leaf', subtitle: t('admin.dashboard.revenueSubtitle') },
     { title: t('admin.dashboard.totalOrders'),  value: stats?.total_orders || 0,             icon: ShoppingBag, color: 'earth' },
@@ -51,25 +62,25 @@ export default function AdminDashboardPage() {
     { title: t('admin.dashboard.delivered'),    value: stats?.delivered    || 0,             icon: CheckCircle, color: 'leaf' },
     { title: t('admin.dashboard.totalUsers'),   value: totalUsers,                           icon: Users,       color: 'soil' },
   ]
- 
+
   const quickLinks = [
-    { to: '/admin/products',   label: t('admin.dashboard.manageProducts'),   icon: Package,   color: 'bg-leaf-50 text-leaf-700 border-leaf-200' },
-    { to: '/admin/categories', label: t('admin.dashboard.manageCategories'), icon: Tag,       color: 'bg-earth-50 text-earth-700 border-earth-200' },
+    { to: '/admin/products',   label: t('admin.dashboard.manageProducts'),   icon: Package,     color: 'bg-leaf-50 text-leaf-700 border-leaf-200' },
+    { to: '/admin/categories', label: t('admin.dashboard.manageCategories'), icon: Tag,         color: 'bg-earth-50 text-earth-700 border-earth-200' },
     { to: '/admin/orders',     label: t('admin.dashboard.viewOrders'),       icon: ShoppingBag, color: 'bg-amber-50 text-amber-700 border-amber-200' },
-    { to: '/admin/users',      label: t('admin.dashboard.manageUsers'),      icon: Users,     color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { to: '/admin/users',      label: t('admin.dashboard.manageUsers'),      icon: Users,       color: 'bg-blue-50 text-blue-700 border-blue-200' },
   ]
- 
+
   return (
     <div className="p-6 animate-fade-in space-y-8">
       <div>
         <h1 className="page-header">{t('admin.dashboard.title')}</h1>
         <p className="text-earth-500 mt-1">{t('admin.dashboard.subtitle')}</p>
       </div>
- 
+
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         {cards.map(c => <StatsCard key={c.title} {...c} />)}
       </div>
- 
+
       <div>
         <h2 className="font-display font-semibold text-bark mb-4">{t('admin.dashboard.quickActions')}</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -83,7 +94,7 @@ export default function AdminDashboardPage() {
           ))}
         </div>
       </div>
- 
+
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Recent Orders */}
         <div className="card">
@@ -114,7 +125,7 @@ export default function AdminDashboardPage() {
             </div>
           )}
         </div>
- 
+
         <div className="space-y-6">
           {/* Low Stock */}
           <div className="card">
@@ -149,7 +160,7 @@ export default function AdminDashboardPage() {
               </div>
             )}
           </div>
- 
+
           {/* Chart */}
           <div className="card p-5">
             <h2 className="font-display font-semibold text-bark mb-4">{t('admin.dashboard.ordersByStatus')}</h2>
@@ -169,4 +180,3 @@ export default function AdminDashboardPage() {
     </div>
   )
 }
- 

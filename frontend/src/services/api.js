@@ -2,22 +2,15 @@ import axios from 'axios'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-// BUG FIX: match sessionStorage used in AuthContext
+// Match sessionStorage used in AuthContext
 const storage = sessionStorage
 
-// SSE EventSource for real-time updates
-let eventSource = null
+// ── SSE real-time updates ──────────────────────────────
+let eventSource    = null
 const updateListeners = new Set()
 
-/**
- * Connect to SSE stream for real-time updates
- * Call this once in your main app component or AuthContext
- */
-export function connectRealTimeUpdates(onUpdate) {
-  if (eventSource) {
-    if (onUpdate) updateListeners.add(onUpdate)
-    return eventSource
-  }
+export function connectRealTimeUpdates() {
+  if (eventSource) return eventSource
 
   const token = storage.getItem('skb_token')
   if (!token) return null
@@ -27,25 +20,18 @@ export function connectRealTimeUpdates(onUpdate) {
   eventSource.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data)
-      // Notify all registered listeners
       updateListeners.forEach(listener => listener(data))
-    } catch (e) {
-      console.error('SSE parse error:', e)
+    } catch {
+      // silently ignore parse errors — not worth logging
     }
   }
 
-  eventSource.onerror = (err) => {
-    console.error('SSE connection error:', err)
-    // Reconnect logic handled by EventSource automatically
-  }
+  // Reconnect is handled automatically by EventSource — no need to log errors
+  eventSource.onerror = () => {}
 
-  if (onUpdate) updateListeners.add(onUpdate)
   return eventSource
 }
 
-/**
- * Disconnect from SSE stream
- */
 export function disconnectRealTimeUpdates() {
   if (eventSource) {
     eventSource.close()
@@ -54,9 +40,6 @@ export function disconnectRealTimeUpdates() {
   }
 }
 
-/**
- * Add/remove individual listeners dynamically
- */
 export function addUpdateListener(listener) {
   updateListeners.add(listener)
 }
@@ -65,13 +48,14 @@ export function removeUpdateListener(listener) {
   updateListeners.delete(listener)
 }
 
+// ── Axios instance ─────────────────────────────────────
 const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
+  timeout: 10000, // 10s — suitable for paid tier (always-on server)
 })
 
-// Request interceptor — attach JWT
+// ── Request interceptor — attach JWT ───────────────────
 api.interceptors.request.use(
   (config) => {
     const token = storage.getItem('skb_token')
@@ -81,80 +65,92 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Response interceptor — handle 401
+// ── Response interceptor — handle 401 ─────────────────
 api.interceptors.response.use(
   (res) => res,
   (error) => {
-    if (error.response?.status === 401) {
+    const url = error.config?.url || ''
+    const isAuthRoute = url.includes('/auth/login') || url.includes('/auth/register')
+
+    // Only treat 401 as session expiry if it comes from an authenticated route
+    // A 401 on /auth/login means wrong credentials — not an expired session
+    if (error.response?.status === 401 && !isAuthRoute) {
       storage.removeItem('skb_token')
       storage.removeItem('skb_user')
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login'
-      }
+
+      // Fire a custom event so AuthContext can show the translated
+      // "session expired" toast before the redirect happens
+      window.dispatchEvent(new CustomEvent('skb:session-expired'))
+
+      // Small delay so the toast is visible before navigation
+      setTimeout(() => {
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login'
+        }
+      }, 1200)
     }
     return Promise.reject(error)
   }
 )
 
-// ─── AUTH ────────────────────────────────────────────
+// ── AUTH ──────────────────────────────────────────────
 export const authAPI = {
-  register: (data) => api.post('/auth/register', data),
-  login: (data) => api.post('/auth/login', data),
-  getUsers: (params) => api.get('/auth/users', { params }),
-  deleteUser: (id) => api.delete(`/auth/users/${id}`),
-  updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
-  getDeliveryBoys: () => api.get('/auth/delivery-boys'),
-  updateProfile: (data) => api.put('/auth/profile', data),
-  changePassword: (data) => api.put('/auth/change-password', data),
+  register:      (data)        => api.post('/api/v1/auth/register',           data),
+  login:         (data)        => api.post('/api/v1/auth/login',              data),
+  getUsers:      (params)      => api.get('/api/v1/auth/users',               { params }),
+  deleteUser:    (id)          => api.delete(`/api/v1/auth/users/${id}`),
+  updateUser:    (id, data)    => api.put(`/api/v1/auth/users/${id}`,         data),
+  getDeliveryBoys: ()          => api.get('/api/v1/auth/delivery-boys'),
+  updateProfile: (data)        => api.put('/api/v1/auth/profile',             data),
+  changePassword:(data)        => api.put('/api/v1/auth/change-password',     data),
 }
 
-// ─── CATEGORIES ──────────────────────────────────────
+// ── CATEGORIES ────────────────────────────────────────
 export const categoryAPI = {
-  list: () => api.get('/categories/'),
-  get: (id) => api.get(`/categories/${id}`),
-  add: (data) => api.post('/categories/', data),
-  update: (id, data) => api.put(`/categories/${id}`, data),
-  delete: (id) => api.delete(`/categories/${id}`),
+  list:   ()           => api.get('/api/v1/categories/'),
+  get:    (id)         => api.get(`/api/v1/categories/${id}`),
+  add:    (data)       => api.post('/api/v1/categories/',    data),
+  update: (id, data)   => api.put(`/api/v1/categories/${id}`, data),
+  delete: (id)         => api.delete(`/api/v1/categories/${id}`),
 }
 
-// ─── PRODUCTS ────────────────────────────────────────
+// ── PRODUCTS ──────────────────────────────────────────
 export const productAPI = {
-  list: (params) => api.get('/products/', { params }),
-  search: (params) => api.get('/products/search', { params }),
-  get: (id) => api.get(`/products/${id}`),
-  add: (data) => api.post('/products/', data),
-  update: (id, data) => api.put(`/products/${id}`, data),
-  delete: (id) => api.delete(`/products/${id}`),
+  list:   (params)     => api.get('/api/v1/products/',         { params }),
+  search: (params)     => api.get('/api/v1/products/search',   { params }),
+  get:    (id)         => api.get(`/api/v1/products/${id}`),
+  add:    (data)       => api.post('/api/v1/products/',         data),
+  update: (id, data)   => api.put(`/api/v1/products/${id}`,    data),
+  delete: (id)         => api.delete(`/api/v1/products/${id}`),
 }
 
-// ─── CART ─────────────────────────────────────────────
+// ── CART ──────────────────────────────────────────────
 export const cartAPI = {
-  get: () => api.get('/cart/'),
-  add: (data) => api.post('/cart/', data),
-  update: (itemId, data) => api.patch(`/cart/${itemId}`, data),
-  remove: (itemId) => api.delete(`/cart/${itemId}`),
+  get:    ()           => api.get('/api/v1/cart/'),
+  add:    (data)       => api.post('/api/v1/cart/',             data),
+  update: (itemId, data) => api.patch(`/api/v1/cart/${itemId}`, data),
+  remove: (itemId)     => api.delete(`/api/v1/cart/${itemId}`),
 }
 
-// ─── ORDERS ──────────────────────────────────────────
+// ── ORDERS ────────────────────────────────────────────
 export const orderAPI = {
-  place: (data) => api.post('/orders/', data),
-  history: (params) => api.get('/orders/', { params }),
-  detail: (id) => api.get(`/orders/${id}/detail`),
-  cancel: (id) => api.patch(`/orders/${id}/cancel`),
-  adminAll: (params) => api.get('/orders/admin', { params }),
-  updateStatus: (id, data) => api.patch(`/orders/${id}`, data),
-  assignDeliveryBoy: (id, data) => api.patch(`/orders/${id}/assign`, data),
-  // Delivery boy
-  myAssignedOrders: (params) => api.get('/orders/delivery/my-orders', { params }),
-  deliveryUpdateStatus: (id, data) => api.patch(`/orders/delivery/${id}/status`, data),
+  place:              (data)       => api.post('/api/v1/orders/',                      data),
+  history:            (params)     => api.get('/api/v1/orders/',                       { params }),
+  detail:             (id)         => api.get(`/api/v1/orders/${id}/detail`),
+  cancel:             (id)         => api.patch(`/api/v1/orders/${id}/cancel`),
+  adminAll:           (params)     => api.get('/api/v1/orders/admin',                  { params }),
+  updateStatus:       (id, data)   => api.patch(`/api/v1/orders/${id}`,               data),
+  assignDeliveryBoy:  (id, data)   => api.patch(`/api/v1/orders/${id}/assign`,         data),
+  myAssignedOrders:   (params)     => api.get('/api/v1/orders/delivery/my-orders',     { params }),
+  deliveryUpdateStatus:(id, data)  => api.patch(`/api/v1/orders/delivery/${id}/status`, data),
 }
 
-// ─── DASHBOARD ───────────────────────────────────────
+// ── DASHBOARD ─────────────────────────────────────────
 export const dashboardAPI = {
-  customer: () => api.get('/dashboard/customer'),
-  admin:    () => api.get('/dashboard/admin'),
-  report:   () => api.get('/dashboard/admin/report'),
-  exportCSV: () => api.get('/dashboard/admin/export', { responseType: 'blob' }),
+  customer:  ()  => api.get('/api/v1/dashboard/customer'),
+  admin:     ()  => api.get('/api/v1/dashboard/admin'),
+  report:    ()  => api.get('/api/v1/dashboard/admin/report'),
+  exportCSV: ()  => api.get('/api/v1/dashboard/admin/export', { responseType: 'blob' }),
 }
 
 export default api

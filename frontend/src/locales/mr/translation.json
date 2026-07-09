@@ -113,13 +113,15 @@
     "lowToHigh": "कमी → जास्त",
     "highToLow": "जास्त → कमी",
     "clearAll": "सर्व फिल्टर साफ करा",
-    "productsFound": "{{count}} उत्पादने सापडली",
-    "productsFoundKeyword": "\"{{keyword}}\" साठी {{count}} उत्पादने सापडली",
     "noMatch": "तुमच्या फिल्टरशी जुळणारी उत्पादने नाहीत",
     "noProducts": "कोणतीही उत्पादने सापडली नाहीत",
     "noProductsAvailable": "सध्या कोणतीही उत्पादने उपलब्ध नाहीत",
     "clearFilters": "फिल्टर साफ करा",
-    "tryAdjusting": "तुमचा शोध किंवा फिल्टर बदलण्याचा प्रयत्न करा"
+    "tryAdjusting": "तुमचा शोध किंवा फिल्टर बदलण्याचा प्रयत्न करा",
+    "productsFound_one": "{{count}} उत्पादन सापडले",
+    "productsFound_other": "{{count}} उत्पादने सापडली",
+    "productsFoundKeyword_one": "\"{{keyword}}\" साठी {{count}} उत्पादन सापडले",
+    "productsFoundKeyword_other": "\"{{keyword}}\" साठी {{count}} उत्पादने सापडली"
   },
   "productDetail": {
     "notFound": "उत्पादन सापडले नाही",
@@ -488,7 +490,8 @@
     "orderUpdated": "ऑर्डर #{{orderId}} {{status}} वर अपडेट झाला",
     "deliveryBoyAssigned": "ऑर्डर #{{orderId}} साठी डिलिव्हरी बॉय नियुक्त झाला",
     "deliveryBoyReassigned": "ऑर्डर #{{orderId}} साठी डिलिव्हरी बॉय बदलला",
-    "deliveryBoyRemoved": "ऑर्डर #{{orderId}} मधून डिलिव्हरी बॉय काढला"
+    "deliveryBoyRemoved": "ऑर्डर #{{orderId}} मधून डिलिव्हरी बॉय काढला",
+    "sessionExpired": "सत्र संपले. कृपया पुन्हा लॉगिन करा."
   },
   "errors": {
     "notFound": "हे पृष्ठ अस्तित्वात नाही.",

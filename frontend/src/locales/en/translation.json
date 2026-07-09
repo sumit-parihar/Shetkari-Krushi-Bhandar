@@ -113,13 +113,15 @@
     "lowToHigh": "Low → High",
     "highToLow": "High → Low",
     "clearAll": "Clear all filters",
-    "productsFound": "{{count}} product{{plural}} found",
-    "productsFoundKeyword": "{{count}} product{{plural}} found for \"{{keyword}}\"",
     "noMatch": "No products match your filters",
     "noProducts": "No products found",
     "noProductsAvailable": "No products available right now",
     "clearFilters": "Clear filters",
-    "tryAdjusting": "Try adjusting your search or filters"
+    "tryAdjusting": "Try adjusting your search or filters",
+    "productsFound_one": "{{count}} product found",
+    "productsFound_other": "{{count}} products found",
+    "productsFoundKeyword_one": "{{count}} product found for \"{{keyword}}\"",
+    "productsFoundKeyword_other": "{{count}} products found for \"{{keyword}}\""
   },
   "productDetail": {
     "notFound": "Product not found",
@@ -488,7 +490,8 @@
     "orderUpdated": "Order #{{orderId}} updated to {{status}}",
     "deliveryBoyAssigned": "Delivery boy assigned to Order #{{orderId}}",
     "deliveryBoyReassigned": "Delivery boy reassigned for Order #{{orderId}}",
-    "deliveryBoyRemoved": "Delivery boy removed from Order #{{orderId}}"
+    "deliveryBoyRemoved": "Delivery boy removed from Order #{{orderId}}",
+    "sessionExpired": "Session expired. Please log in again."
   },
   "errors": {
     "notFound": "This page doesn't exist.",

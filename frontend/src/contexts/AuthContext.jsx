@@ -1,14 +1,12 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { authAPI, connectRealTimeUpdates, disconnectRealTimeUpdates } from '../services/api'
-import { useEffect } from 'react'
 import toast from 'react-hot-toast'
 import i18n from '../i18n'
- 
+
 const AuthContext = createContext(null)
- 
-// BUG FIX: Use sessionStorage instead of localStorage so session clears on browser close
+
 const storage = sessionStorage
- 
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
@@ -17,7 +15,7 @@ export function AuthProvider({ children }) {
     } catch { return null }
   })
   const [loading, setLoading] = useState(false)
- 
+
   const login = useCallback(async (email, password) => {
     setLoading(true)
     try {
@@ -36,7 +34,7 @@ export function AuthProvider({ children }) {
       setLoading(false)
     }
   }, [])
- 
+
   const register = useCallback(async (name, email, password, phone, address) => {
     setLoading(true)
     try {
@@ -51,41 +49,60 @@ export function AuthProvider({ children }) {
       setLoading(false)
     }
   }, [])
- 
+
   const logout = useCallback(() => {
     storage.removeItem('skb_token')
     storage.removeItem('skb_user')
     setUser(null)
     toast.success(i18n.t('toast.loggedOut'))
   }, [])
- 
-  const isAdmin = user?.role === 'admin'
-  const isCustomer = user?.role === 'customer'
+
+  // Called by api.js interceptor when a 401 is received
+  // Shows a translated toast before clearing the session
+  const handleSessionExpired = useCallback(() => {
+    storage.removeItem('skb_token')
+    storage.removeItem('skb_user')
+    setUser(null)
+  }, [])
+
+  const isAdmin       = user?.role === 'admin'
+  const isCustomer    = user?.role === 'customer'
   const isDeliveryBoy = user?.role === 'delivery_boy'
-  const isLoggedIn = !!user
- 
+  const isLoggedIn    = !!user
+
+  // Listen for session-expired events dispatched by the Axios interceptor
+  useEffect(() => {
+    const onExpired = () => {
+      handleSessionExpired()
+      // Show toast after state clears so it's visible on the login page
+      setTimeout(() => toast.error(i18n.t('toast.sessionExpired')), 100)
+    }
+    window.addEventListener('skb:session-expired', onExpired)
+    return () => window.removeEventListener('skb:session-expired', onExpired)
+  }, [handleSessionExpired])
+
   // Connect to SSE real-time updates when logged in
   useEffect(() => {
     if (isLoggedIn) {
-      connectRealTimeUpdates((update) => {
-        console.log('[SSE] Real-time update:', update)
-      })
+      connectRealTimeUpdates()
     } else {
       disconnectRealTimeUpdates()
     }
     return () => disconnectRealTimeUpdates()
   }, [isLoggedIn])
- 
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading, isAdmin, isCustomer, isDeliveryBoy, isLoggedIn }}>
+    <AuthContext.Provider value={{
+      user, login, register, logout, loading,
+      isAdmin, isCustomer, isDeliveryBoy, isLoggedIn,
+    }}>
       {children}
     </AuthContext.Provider>
   )
 }
- 
+
 export const useAuth = () => {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')
   return ctx
 }
- 

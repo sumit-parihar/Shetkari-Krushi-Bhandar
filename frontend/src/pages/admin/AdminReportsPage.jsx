@@ -1,26 +1,40 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, CartesianGrid, Legend } from 'recharts'
 import { TrendingUp, Download, Package, Tag, Truck, ShoppingBag } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { dashboardAPI } from '../../services/api'
+import { dashboardAPI, addUpdateListener, removeUpdateListener } from '../../services/api'
 import { PageLoader } from '../../components/UI'
 import { formatCurrency } from '../../utils/helpers'
 import i18n from '../../i18n'
 import toast from 'react-hot-toast'
- 
+
 export default function AdminReportsPage() {
   const { t } = useTranslation()
   const [data, setData]         = useState(null)
   const [loading, setLoading]   = useState(true)
   const [exporting, setExporting] = useState(false)
- 
-  useEffect(() => {
+
+  const fetchReportData = useCallback(() => {
     dashboardAPI.report()
       .then(r => setData(r.data.data))
       .catch(() => toast.error(i18n.t('toast.failedToLoadReport')))
       .finally(() => setLoading(false))
   }, [])
- 
+
+  useEffect(() => { fetchReportData() }, [fetchReportData])
+
+  // Re-fetch when any order status changes via SSE
+  // This covers: delivery completions, cancellations, shipments
+  useEffect(() => {
+    const handleUpdate = (update) => {
+      if (update.type === 'order_status_changed') {
+        fetchReportData()
+      }
+    }
+    addUpdateListener(handleUpdate)
+    return () => removeUpdateListener(handleUpdate)
+  }, [fetchReportData])
+
   const handleExport = async () => {
     setExporting(true)
     try {
@@ -38,32 +52,32 @@ export default function AdminReportsPage() {
       setExporting(false)
     }
   }
- 
+
   if (loading) return <PageLoader />
- 
+
   const monthly        = data?.monthly || []
   const totalRevenue   = monthly.reduce((s, m) => s + (m.revenue      || 0), 0)
   const totalOrders    = monthly.reduce((s, m) => s + (m.total_orders  || 0), 0)
   const totalDelivered = monthly.reduce((s, m) => s + (m.delivered     || 0), 0)
   const totalCancelled = monthly.reduce((s, m) => s + (m.cancelled     || 0), 0)
- 
+
   const chartData = monthly.map(m => ({
     ...m,
     label: m.month ? m.month.slice(0, 7) : m.month,
   }))
- 
+
   const COLORS = ['#4a9635', '#e89a27', '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4']
- 
+
   const summaryCards = [
     { label: t('admin.reports.totalRevenue'), value: formatCurrency(totalRevenue), icon: TrendingUp,  color: 'bg-leaf-50 text-leaf-700 border-leaf-200' },
     { label: t('admin.reports.totalOrders'),  value: totalOrders,                  icon: ShoppingBag, color: 'bg-earth-50 text-earth-700 border-earth-200' },
     { label: t('admin.reports.delivered'),    value: totalDelivered,               icon: Truck,       color: 'bg-blue-50 text-blue-700 border-blue-200' },
     { label: t('admin.reports.cancelled'),    value: totalCancelled,               icon: Package,     color: 'bg-red-50 text-red-700 border-red-200' },
   ]
- 
+
   return (
     <div className="p-6 animate-fade-in space-y-6">
- 
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -75,7 +89,7 @@ export default function AdminReportsPage() {
           {exporting ? t('admin.reports.exporting') : t('admin.reports.exportCSV')}
         </button>
       </div>
- 
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {summaryCards.map(c => (
@@ -92,7 +106,7 @@ export default function AdminReportsPage() {
           </div>
         ))}
       </div>
- 
+
       {/* Monthly Revenue Line Chart */}
       {chartData.length > 0 && (
         <div className="card p-5">
@@ -119,9 +133,9 @@ export default function AdminReportsPage() {
           </ResponsiveContainer>
         </div>
       )}
- 
+
       <div className="grid lg:grid-cols-2 gap-6">
- 
+
         {/* Top Products */}
         <div className="card p-5">
           <h2 className="font-display font-semibold text-bark mb-4 flex items-center gap-2">
@@ -152,7 +166,7 @@ export default function AdminReportsPage() {
             </div>
           )}
         </div>
- 
+
         {/* Revenue by Category */}
         <div className="card p-5">
           <h2 className="font-display font-semibold text-bark mb-4 flex items-center gap-2">
@@ -175,7 +189,7 @@ export default function AdminReportsPage() {
           )}
         </div>
       </div>
- 
+
       {/* Delivery Boy Performance */}
       {data?.delivery_perf?.length > 0 && (
         <div className="card p-5">
@@ -223,4 +237,3 @@ export default function AdminReportsPage() {
     </div>
   )
 }
- 
