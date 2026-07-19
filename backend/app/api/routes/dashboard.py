@@ -11,20 +11,20 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-# ── CUSTOMER DASHBOARD ────────────────────────────────
+# ── CUSTOMER DASHBOARD ────────────────────────────────────
 @router.get("/customer")
 async def customer_dashboard(conn=Depends(get_db), user=Depends(require_customer)):
     user_id = user["user_id"]
     try:
         total_orders = conn.execute(
-            "SELECT COUNT(*) as count FROM Orders WHERE user_id = ?", (user_id,)
+            "SELECT COUNT(*) as count FROM Orders WHERE user_id = %s", (user_id,)
         ).fetchone()["count"]
 
         statuses = ("Pending", "Shipped", "Delivered", "Cancelled")
         counts   = {}
         for s in statuses:
             counts[s.lower()] = conn.execute(
-                "SELECT COUNT(*) as count FROM Orders WHERE user_id = ? AND order_status = ?",
+                "SELECT COUNT(*) as count FROM Orders WHERE user_id = %s AND order_status = %s",
                 (user_id, s),
             ).fetchone()["count"]
 
@@ -32,7 +32,7 @@ async def customer_dashboard(conn=Depends(get_db), user=Depends(require_customer
             """
             SELECT order_id, total_amount, order_status, order_date
             FROM Orders
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY order_date DESC
             LIMIT 5
             """,
@@ -52,23 +52,23 @@ async def customer_dashboard(conn=Depends(get_db), user=Depends(require_customer
         return error_response("Internal server error", 500)
 
 
-# ── ADMIN DASHBOARD ───────────────────────────────────
+# ── ADMIN DASHBOARD ───────────────────────────────────────
 @router.get("/admin")
 async def admin_dashboard(conn=Depends(get_db), admin=Depends(require_admin)):
     try:
-        total_orders = conn.execute("SELECT COUNT(*) as count FROM Orders").fetchone()["count"]
-        revenue = (
-            conn.execute(
-                "SELECT SUM(total_amount) as total FROM Orders WHERE order_status != 'Cancelled'"
-            ).fetchone()["total"]
-            or 0
-        )
+        total_orders = conn.execute(
+            "SELECT COUNT(*) as count FROM Orders"
+        ).fetchone()["count"]
+
+        revenue = conn.execute(
+            "SELECT COALESCE(SUM(total_amount), 0) as total FROM Orders WHERE order_status != 'Cancelled'"
+        ).fetchone()["total"] or 0
 
         statuses = ("Pending", "Shipped", "Delivered", "Cancelled")
         counts   = {}
         for s in statuses:
             counts[s.lower()] = conn.execute(
-                "SELECT COUNT(*) as count FROM Orders WHERE order_status = ?", (s,)
+                "SELECT COUNT(*) as count FROM Orders WHERE order_status = %s", (s,)
             ).fetchone()["count"]
 
         return success_response(data={
@@ -84,22 +84,23 @@ async def admin_dashboard(conn=Depends(get_db), admin=Depends(require_admin)):
         return error_response("Internal server error", 500)
 
 
-# ── ADMIN SALES REPORT ────────────────────────────────
-# NOTE: strftime / date() here are SQLite syntax.
-# These will be replaced with PostgreSQL equivalents (to_char / NOW() - INTERVAL)
-# when we do the PostgreSQL migration step.
+# ── ADMIN SALES REPORT ────────────────────────────────────
+# PostgreSQL date functions used here:
+#   strftime('%Y-%m', ...) → to_char(..., 'YYYY-MM')
+#   date('now', '-12 months') → NOW() - INTERVAL '12 months'
 @router.get("/admin/report")
 async def admin_report(conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         monthly = conn.execute(
             """
-            SELECT strftime('%Y-%m', order_date) AS month,
-                   COUNT(*) AS total_orders,
-                   SUM(CASE WHEN order_status != 'Cancelled' THEN total_amount ELSE 0 END) AS revenue,
-                   SUM(CASE WHEN order_status = 'Delivered'  THEN 1 ELSE 0 END) AS delivered,
-                   SUM(CASE WHEN order_status = 'Cancelled'  THEN 1 ELSE 0 END) AS cancelled
+            SELECT
+                to_char(order_date, 'YYYY-MM') AS month,
+                COUNT(*) AS total_orders,
+                SUM(CASE WHEN order_status != 'Cancelled' THEN total_amount ELSE 0 END) AS revenue,
+                SUM(CASE WHEN order_status = 'Delivered'  THEN 1 ELSE 0 END) AS delivered,
+                SUM(CASE WHEN order_status = 'Cancelled'  THEN 1 ELSE 0 END) AS cancelled
             FROM Orders
-            WHERE order_date >= date('now', '-12 months')
+            WHERE order_date >= NOW() - INTERVAL '12 months'
             GROUP BY month
             ORDER BY month ASC
             """
@@ -107,13 +108,14 @@ async def admin_report(conn=Depends(get_db), admin=Depends(require_admin)):
 
         top_products = conn.execute(
             """
-            SELECT p.name, SUM(oi.quantity) AS total_sold,
+            SELECT p.name,
+                   SUM(oi.quantity) AS total_sold,
                    SUM(oi.quantity * oi.price) AS revenue
             FROM Order_Items oi
             JOIN Products p ON oi.product_id = p.product_id
             JOIN Orders o   ON oi.order_id   = o.order_id
             WHERE o.order_status != 'Cancelled'
-            GROUP BY p.product_id
+            GROUP BY p.product_id, p.name
             ORDER BY total_sold DESC
             LIMIT 10
             """
@@ -121,14 +123,15 @@ async def admin_report(conn=Depends(get_db), admin=Depends(require_admin)):
 
         top_categories = conn.execute(
             """
-            SELECT c.category_name, SUM(oi.quantity * oi.price) AS revenue,
+            SELECT c.category_name,
+                   SUM(oi.quantity * oi.price) AS revenue,
                    SUM(oi.quantity) AS total_sold
             FROM Order_Items oi
-            JOIN Products p   ON oi.product_id  = p.product_id
-            JOIN Categories c ON p.category_id  = c.category_id
-            JOIN Orders o     ON oi.order_id    = o.order_id
+            JOIN Products   p ON oi.product_id = p.product_id
+            JOIN Categories c ON p.category_id = c.category_id
+            JOIN Orders     o ON oi.order_id   = o.order_id
             WHERE o.order_status != 'Cancelled'
-            GROUP BY c.category_id
+            GROUP BY c.category_id, c.category_name
             ORDER BY revenue DESC
             LIMIT 5
             """
@@ -142,7 +145,7 @@ async def admin_report(conn=Depends(get_db), admin=Depends(require_admin)):
             FROM Orders o
             JOIN Users u ON o.delivery_boy_id = u.user_id
             WHERE o.delivery_boy_id IS NOT NULL
-            GROUP BY o.delivery_boy_id
+            GROUP BY o.delivery_boy_id, u.name
             ORDER BY delivered DESC
             """
         ).fetchall()
@@ -158,14 +161,18 @@ async def admin_report(conn=Depends(get_db), admin=Depends(require_admin)):
         return error_response("Internal server error", 500)
 
 
-# ── EXPORT ORDERS AS CSV ──────────────────────────────
+# ── EXPORT ORDERS AS CSV ──────────────────────────────────
 @router.get("/admin/export")
 async def admin_export(conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         orders = conn.execute(
             """
-            SELECT o.order_id, u.name AS customer, o.total_amount,
-                   o.order_status, o.payment_method, o.order_date,
+            SELECT o.order_id,
+                   u.name AS customer,
+                   o.total_amount,
+                   o.order_status,
+                   o.payment_method,
+                   o.order_date,
                    o.delivery_address,
                    COALESCE(db.name, 'Unassigned') AS delivery_boy
             FROM Orders o
@@ -183,8 +190,8 @@ async def admin_export(conn=Depends(get_db), admin=Depends(require_admin)):
         ])
         for o in orders:
             writer.writerow([
-                o["order_id"],   o["customer"],        o["total_amount"],
-                o["order_status"], o["payment_method"], o["order_date"],
+                o["order_id"],     o["customer"],        o["total_amount"],
+                o["order_status"], o["payment_method"],  o["order_date"],
                 o["delivery_address"] or "",             o["delivery_boy"],
             ])
 

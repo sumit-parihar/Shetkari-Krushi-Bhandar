@@ -48,7 +48,6 @@ if _missing:
 
 # ── Import routers ─────────────────────────────────────────
 from app.api.routes import auth, product, cart, order, dashboard, categories
-from app.db.connection import get_db_connection
 from app.utils.sse import subscribers
 
 # ── Rate limiter ───────────────────────────────────────────
