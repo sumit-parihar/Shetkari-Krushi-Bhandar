@@ -96,6 +96,8 @@ api.interceptors.response.use(
 // ── AUTH ──────────────────────────────────────────────
 export const authAPI = {
   register:      (data)        => api.post('/api/v1/auth/register',           data),
+  verifyOtp:     (data)        => api.post('/api/v1/auth/verify-otp',         data),
+  resendOtp:     (data)        => api.post('/api/v1/auth/resend-otp',         data),
   login:         (data)        => api.post('/api/v1/auth/login',              data),
   getUsers:      (params)      => api.get('/api/v1/auth/users',               { params }),
   deleteUser:    (id)          => api.delete(`/api/v1/auth/users/${id}`),

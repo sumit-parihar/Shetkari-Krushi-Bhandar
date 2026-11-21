@@ -65,6 +65,20 @@
       "newPasswordMinLength": "New password must be at least 6 characters",
       "validEmailRequired": "Valid email is required",
       "nameFieldRequired": "Name is required"
+    },
+    "otp": {
+      "title": "Verify Your Email",
+      "subtitle": "Enter the 6-digit code sent to {{email}}",
+      "label": "Verification Code",
+      "placeholder": "Enter 6-digit code",
+      "verify": "Verify & Create Account",
+      "resend": "Resend Code",
+      "resendIn": "Resend in {{seconds}}s",
+      "didntReceive": "Didn't receive the code?",
+      "wrongEmail": "Wrong email?",
+      "backToRegister": "Back to Register",
+      "verifying": "Verifying...",
+      "sending": "Sending..."
     }
   },
   "home": {
@@ -491,7 +505,11 @@
     "deliveryBoyAssigned": "Delivery boy assigned to Order #{{orderId}}",
     "deliveryBoyReassigned": "Delivery boy reassigned for Order #{{orderId}}",
     "deliveryBoyRemoved": "Delivery boy removed from Order #{{orderId}}",
-    "sessionExpired": "Session expired. Please log in again."
+    "sessionExpired": "Session expired. Please log in again.",
+    "otpSent": "Verification code sent to your email!",
+    "otpVerified": "Email verified! Please log in.",
+    "otpResent": "New code sent to your email!",
+    "emailNotVerified": "Please verify your email before logging in."
   },
   "errors": {
     "notFound": "This page doesn't exist.",

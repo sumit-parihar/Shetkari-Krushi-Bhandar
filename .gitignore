@@ -99,3 +99,5 @@ pnpm-debug.log*
 tests/
 
 .qwen/
+
+backend/app/utils/.env
