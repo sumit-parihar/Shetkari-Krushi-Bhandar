@@ -124,9 +124,24 @@ def _chunked_post(base, path, size):
     return int(data.split(b" ")[1]) if data.startswith(b"HTTP/") else None
 
 
-def test_body_size_limit(api, server):
-    big = b'{"email":"' + b"a" * (1024 * 1024 + 10) + b'"}'
-    assert api.post("/auth/login", raw=big).status == 413
+def _declared_size_post(base, path, size):
+    """Send only the headers, declaring a big body. The server must answer 413 without
+    reading it (sending the body too would race with the server closing the socket)."""
+    host, port = base.replace("http://", "").split(":")
+    with socket.create_connection((host, int(port)), timeout=30) as s:
+        s.sendall(f"POST {path} HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n"
+                  f"Content-Length: {size}\r\n\r\n".encode())
+        data = b""
+        while b"\r\n" not in data:
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+    return int(data.split(b" ")[1]) if data.startswith(b"HTTP/") else None
+
+
+def test_body_size_limit(server):
+    assert _declared_size_post(server["base"], "/api/v1/auth/login", 1024 * 1024 + 10) == 413
     assert _chunked_post(server["base"], "/api/v1/auth/login", 1024 * 1024 + 5000) == 413
     assert _chunked_post(server["base"], "/api/v1/auth/login", 200) == 401
 
