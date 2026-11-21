@@ -204,4 +204,10 @@ print(f"✓ OTP table:  ready ({cur.fetchone()[0]} pending)")
 
 cur.close()
 conn.close()
+
+# Bring the schema up to date (soft delete, NUMERIC money, constraints, indexes)
+print("Applying migrations...")
+import migrate  # noqa: E402  (lives next to this file)
+migrate.run()
+
 print("\n✅ PostgreSQL database initialization complete!")

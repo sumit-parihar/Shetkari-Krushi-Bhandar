@@ -79,7 +79,7 @@ def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict
 
         items = conn.execute(
             """
-            SELECT ci.cart_item_id, ci.product_id, ci.quantity, p.price, p.stock_quantity, p.name
+            SELECT ci.cart_item_id, ci.product_id, ci.quantity, p.price, p.stock_quantity, p.name, p.is_active
             FROM Cart_Items ci
             JOIN Products p ON ci.product_id = p.product_id
             WHERE ci.cart_id = ?
@@ -92,6 +92,8 @@ def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict
 
         # Validate stock for ALL items before touching anything
         for item in items:
+            if not item["is_active"]:
+                return error_response(f"'{item['name']}' is no longer available. Please remove it from your cart.", 400)
             if item["quantity"] > item["stock_quantity"]:
                 return error_response(
                     f"Insufficient stock for '{item['name']}' "
@@ -342,7 +344,7 @@ def assign_delivery_boy(
 
         if delivery_boy_id is not None:
             db_user = conn.execute(
-                "SELECT user_id FROM Users WHERE user_id = ? AND role = 'delivery_boy'",
+                "SELECT user_id FROM Users WHERE user_id = ? AND role = 'delivery_boy' AND is_active",
                 (delivery_boy_id,),
             ).fetchone()
             if not db_user:

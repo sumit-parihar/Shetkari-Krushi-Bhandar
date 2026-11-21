@@ -32,10 +32,10 @@ def user_from_token(token: str, conn) -> dict:
         raise _unauthorized("Invalid token type")
 
     row = conn.execute(
-        "SELECT user_id, role, is_verified FROM Users WHERE user_id = %s",
+        "SELECT user_id, role, is_verified, is_active FROM Users WHERE user_id = %s",
         (int(decoded["user_id"]),),
     ).fetchone()
-    if not row or not row["is_verified"]:
+    if not row or not row["is_verified"] or not row["is_active"]:
         raise _unauthorized("Account no longer exists")
 
     return {"user_id": row["user_id"], "role": normalize_role(row["role"])}

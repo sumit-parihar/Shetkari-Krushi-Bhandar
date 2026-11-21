@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 MAX_NAME        = 200
 MAX_DESCRIPTION = 2000
 MAX_IMAGE_URL   = 500
+MAX_PRICE       = 99_999_999.99   # NUMERIC(10,2) column
 
 
 def _validate_product_fields(data: dict, require_all: bool = True) -> str | None:
@@ -47,6 +48,8 @@ def _validate_product_fields(data: dict, require_all: bool = True) -> str | None
             return "price must be a valid number"
         if value < 0:
             return "price must be 0 or greater"
+        if value > MAX_PRICE:
+            return f"price must be {MAX_PRICE:,.2f} or less"
 
     if stock is not None:
         try:
@@ -68,12 +71,13 @@ def get_products(request: Request, conn=Depends(get_db)):
     offset = (page - 1) * page_size
 
     try:
-        total = conn.execute("SELECT COUNT(*) as total FROM Products").fetchone()["total"]
+        total = conn.execute("SELECT COUNT(*) as total FROM Products WHERE is_active").fetchone()["total"]
         products = conn.execute(
             """
             SELECT p.product_id, p.name, p.price, p.stock_quantity, p.image_url, c.category_name
             FROM Products p
             LEFT JOIN Categories c ON p.category_id = c.category_id
+            WHERE p.is_active
             ORDER BY p.created_at DESC
             LIMIT ? OFFSET ?
             """,
@@ -116,7 +120,7 @@ def search_products(request: Request, conn=Depends(get_db)):
         if sort and sort not in ("asc", "desc"):
             return error_response("sort must be 'asc' or 'desc'", 400)
 
-        where        = "WHERE 1=1"
+        where        = "WHERE p.is_active"
         query_params = []
 
         if keyword:
@@ -231,7 +235,7 @@ def update_product(
 
     try:
         product = conn.execute(
-            "SELECT product_id, name, description, price, stock_quantity, category_id, image_url FROM Products WHERE product_id = ?",
+            "SELECT product_id, name, description, price, stock_quantity, category_id, image_url FROM Products WHERE product_id = ? AND is_active",
             (product_id,),
         ).fetchone()
         if not product:
@@ -274,9 +278,14 @@ def update_product(
 @router.delete("/{product_id}")
 def delete_product(product_id: int, conn=Depends(get_db), admin=Depends(require_admin)):
     try:
-        if not conn.execute("SELECT 1 FROM Products WHERE product_id = ?", (product_id,)).fetchone():
+        if not conn.execute(
+            "SELECT 1 FROM Products WHERE product_id = ? AND is_active", (product_id,)
+        ).fetchone():
             return error_response("Product not found", 404)
-        conn.execute("DELETE FROM Products WHERE product_id = ?", (product_id,))
+        # Deactivate instead of deleting: it leaves the shop and every cart,
+        # but past orders and sales reports keep showing it.
+        conn.execute("UPDATE Products SET is_active = FALSE WHERE product_id = ?", (product_id,))
+        conn.execute("DELETE FROM Cart_Items WHERE product_id = ?", (product_id,))
         conn.commit()
         return success_response(message="Product deleted successfully")
     except Exception:
@@ -295,7 +304,7 @@ def get_product_by_id(product_id: int, conn=Depends(get_db)):
                    p.image_url, c.category_name
             FROM Products p
             LEFT JOIN Categories c ON p.category_id = c.category_id
-            WHERE p.product_id = ?
+            WHERE p.product_id = ? AND p.is_active
             """,
             (product_id,),
         ).fetchone()

@@ -16,7 +16,7 @@ def get_cart(conn=Depends(get_db), user=Depends(require_customer)):
     try:
         cart = conn.execute("SELECT cart_id FROM Cart WHERE user_id = ?", (user_id,)).fetchone()
         if not cart:
-            conn.execute("INSERT INTO Cart (user_id) VALUES (?)", (user_id,))
+            conn.execute("INSERT INTO Cart (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING", (user_id,))
             conn.commit()
             cart_id = conn.execute(
                 "SELECT cart_id FROM Cart WHERE user_id = ?", (user_id,)
@@ -60,7 +60,7 @@ def add_to_cart(conn=Depends(get_db), user=Depends(require_customer), data: dict
 
     try:
         product = conn.execute(
-            "SELECT stock_quantity FROM Products WHERE product_id = ?", (product_id,)
+            "SELECT stock_quantity FROM Products WHERE product_id = ? AND is_active", (product_id,)
         ).fetchone()
         if not product:
             return error_response("Product not found", 404)
@@ -69,7 +69,7 @@ def add_to_cart(conn=Depends(get_db), user=Depends(require_customer), data: dict
 
         cart = conn.execute("SELECT cart_id FROM Cart WHERE user_id = ?", (user_id,)).fetchone()
         if not cart:
-            conn.execute("INSERT INTO Cart (user_id) VALUES (?)", (user_id,))
+            conn.execute("INSERT INTO Cart (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING", (user_id,))
             conn.commit()
             cart_id = conn.execute(
                 "SELECT cart_id FROM Cart WHERE user_id = ?", (user_id,)

@@ -118,7 +118,7 @@ def delete_category(category_id: int, conn=Depends(get_db), admin=Depends(requir
 
         # Check if any products are using this category
         product_count = conn.execute(
-            "SELECT COUNT(*) as c FROM Products WHERE category_id = ?", (category_id,)
+            "SELECT COUNT(*) as c FROM Products WHERE category_id = ? AND is_active", (category_id,)
         ).fetchone()["c"]
         if product_count > 0:
             return error_response(

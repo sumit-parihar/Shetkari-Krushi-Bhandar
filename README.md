@@ -41,6 +41,7 @@ SKB-updated/
 │   ├── .env.example
 │   └── vercel.json            # SPA rewrites for Vercel
 ├── init_db.py                 # creates tables + seeds demo data (run once)
+├── migrate.py                 # applies backend/migrations/*.sql (schema updates)
 └── start-dev.sh               # starts backend + frontend together (Git Bash / Linux / macOS)
 ```
 
@@ -71,7 +72,16 @@ copy .env.example .env               # Linux/macOS: cp .env.example .env
 python init_db.py
 ```
 
-Creates all tables. If the `Users` table is empty it also seeds demo categories, products and orders. Safe to run again: it never duplicates or deletes data.
+Creates all tables, applies all migrations, and if the `Users` table is empty seeds demo categories, products and orders. Safe to run again: it never duplicates or deletes data.
+
+### Updating an existing database
+
+Schema changes live in `backend/migrations/` as numbered `.sql` files. To apply new ones to an existing database (e.g. Neon) **before deploying code that needs them**:
+
+```powershell
+python migrate.py --status   # shows applied / pending, changes nothing
+python migrate.py            # applies pending migrations, each in one transaction
+```
 
 ### 3. Run
 
@@ -205,13 +215,15 @@ After the first Vercel deploy, put the Vercel URL into `FRONTEND_URL` on Render 
 
 | Table | Columns |
 |-------|---------|
-| `Users` | user_id, name, email, password (bcrypt), phone, address, role, is_verified, created_at |
+| `Users` | user_id, name, email (lowercase, unique ignoring case), password (bcrypt), phone, address, role, is_verified, is_active, created_at |
 | `OTP_Verifications` | pending sign-ups: email, otp, name, password, phone, address, expires_at |
 | `Categories` | category_id, category_name, description |
-| `Products` | product_id, name, description, price, stock_quantity, category_id, image_url, created_at |
+| `Products` | product_id, name, description, price (NUMERIC 10,2), stock_quantity (≥ 0), category_id, image_url, is_active, created_at |
 | `Cart` / `Cart_Items` | one cart per customer; cart_item_id, product_id, quantity |
 | `Orders` | order_id, user_id, total_amount, order_status, payment_method, order_date, delivery_address, delivery_boy_id |
 | `Order_Items` | order_item_id, order_id, product_id, quantity, price (price at time of order) |
 | `Inventory_Log` | reserved for stock history (not used yet) |
 
-The schema lives in `init_db.py`.
+Deleting a user or product in the admin panel **deactivates** it (`is_active = false`): it disappears from the shop, carts and admin lists and can't log in, but past orders and sales reports keep it. Money columns are exact decimals, and the database itself rejects negative stock/prices, zero-quantity lines, a second cart per user and duplicate emails.
+
+The base schema is in `init_db.py`; later changes are in `backend/migrations/`.

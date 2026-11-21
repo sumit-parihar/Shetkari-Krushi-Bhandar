@@ -285,15 +285,18 @@ def login(request: Request, conn=Depends(get_db), data: dict = Depends(json_body
     try:
         user = conn.execute(
             """
-            SELECT user_id, name, email, password, phone, address, role, is_verified
+            SELECT user_id, name, email, password, phone, address, role, is_verified, is_active
             FROM Users
-            WHERE LOWER(TRIM(email)) = LOWER(TRIM(%s))
+            WHERE LOWER(email) = LOWER(TRIM(%s))
             """,
             (email,),
         ).fetchone()
 
         if not user or not verify_password(password, user["password"]):
             return error_response("Invalid email or password", 401)
+
+        if not user["is_active"]:
+            return error_response("This account has been deactivated. Please contact the shop.", 403)
 
         # Block unverified users from logging in
         if not user["is_verified"]:
@@ -338,7 +341,7 @@ def update_own_profile(conn=Depends(get_db), user=Depends(require_user), data: d
             return error_response("User not found", 404)
 
         name  = str(data.get("name",  row["name"])).strip()  or row["name"]
-        email = str(data.get("email", row["email"])).strip() or row["email"]
+        email = (str(data.get("email", row["email"])).strip() or row["email"]).lower()
 
         if not name:                  return error_response("Name is required", 400)
         if len(name) > MAX_NAME:      return error_response(f"Name must be {MAX_NAME} characters or fewer", 400)
@@ -346,7 +349,7 @@ def update_own_profile(conn=Depends(get_db), user=Depends(require_user), data: d
         if len(email) > MAX_EMAIL:    return error_response(f"Email must be {MAX_EMAIL} characters or fewer", 400)
 
         existing = conn.execute(
-            "SELECT user_id FROM Users WHERE email = %s AND user_id != %s", (email, user_id)
+            "SELECT user_id FROM Users WHERE LOWER(email) = %s AND user_id != %s", (email, user_id)
         ).fetchone()
         if existing:
             return error_response("Email already in use by another account", 400)
@@ -417,7 +420,7 @@ def list_users(request: Request, conn=Depends(get_db), admin=Depends(require_adm
     offset      = (page - 1) * page_size
 
     try:
-        base = "FROM Users WHERE 1=1"
+        base = "FROM Users WHERE is_active"
         qp: list = []
         if search:
             base += " AND (name ILIKE %s OR email ILIKE %s)"
@@ -458,16 +461,29 @@ def admin_delete_user(user_id: int, conn=Depends(get_db), admin=Depends(require_
     if user_id == admin["user_id"]:
         return error_response("You cannot delete your own account", 400)
     try:
-        row = conn.execute("SELECT user_id FROM Users WHERE user_id = %s", (user_id,)).fetchone()
+        row = conn.execute(
+            "SELECT user_id FROM Users WHERE user_id = %s AND is_active", (user_id,)
+        ).fetchone()
         if not row:
             return error_response("User not found", 404)
-        conn.execute("DELETE FROM Users WHERE user_id = %s", (user_id,))
+        # Deactivate instead of deleting, so past orders and reports keep the customer.
+        # The account can no longer log in and existing tokens stop working.
+        conn.execute("UPDATE Users SET is_active = FALSE WHERE user_id = %s", (user_id,))
+        conn.execute("DELETE FROM Cart WHERE user_id = %s", (user_id,))   # cart lines cascade
+        # A removed delivery boy's open orders go back to the admin to reassign
+        conn.execute(
+            """
+            UPDATE Orders SET delivery_boy_id = NULL
+            WHERE delivery_boy_id = %s AND order_status IN ('Pending', 'Shipped')
+            """,
+            (user_id,),
+        )
         conn.commit()
         return success_response(message="User deleted successfully")
     except Exception:
-        logger.exception("Delete user failed for user_id: %s", user_id)
+        logger.exception("Deactivate user failed for user_id: %s", user_id)
         conn.rollback()
-        return error_response("Cannot delete user (may have orders or related data)", 400)
+        return error_response("Internal server error", 500)
 
 
 # ── ADMIN: UPDATE USER ────────────────────────────────
@@ -481,7 +497,7 @@ def admin_update_user(
 
     try:
         row = conn.execute(
-            "SELECT user_id, name, email, role, phone, address FROM Users WHERE user_id = %s",
+            "SELECT user_id, name, email, role, phone, address FROM Users WHERE user_id = %s AND is_active",
             (user_id,),
         ).fetchone()
         if not row:
@@ -492,7 +508,7 @@ def admin_update_user(
             return error_response("Invalid role", 400)
 
         name    = str(data.get("name",  row["name"])).strip()  or row["name"]
-        email   = str(data.get("email", row["email"])).strip() or row["email"]
+        email   = (str(data.get("email", row["email"])).strip() or row["email"]).lower()
         phone   = data.get("phone",   row["phone"])
         address = data.get("address", row["address"])
 
@@ -500,7 +516,7 @@ def admin_update_user(
         if len(email) > MAX_EMAIL: return error_response(f"Email max {MAX_EMAIL} chars", 400)
 
         existing = conn.execute(
-            "SELECT user_id FROM Users WHERE email = %s AND user_id != %s", (email, user_id)
+            "SELECT user_id FROM Users WHERE LOWER(email) = %s AND user_id != %s", (email, user_id)
         ).fetchone()
         if existing:
             return error_response("Email already in use", 400)
@@ -523,7 +539,7 @@ def admin_update_user(
 def list_delivery_boys(conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         rows = conn.execute(
-            "SELECT user_id, name, email, phone FROM Users WHERE role = 'delivery_boy' ORDER BY name"
+            "SELECT user_id, name, email, phone FROM Users WHERE role = 'delivery_boy' AND is_active ORDER BY name"
         ).fetchall()
         return success_response(data={"delivery_boys": [dict(r) for r in rows]})
     except Exception:
