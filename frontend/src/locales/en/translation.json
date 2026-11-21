@@ -509,7 +509,9 @@
     "otpSent": "Verification code sent to your email!",
     "otpVerified": "Email verified! Please log in.",
     "otpResent": "New code sent to your email!",
-    "emailNotVerified": "Please verify your email before logging in."
+    "emailNotVerified": "Please verify your email before logging in.",
+    "otpInvalid": "Invalid or expired code",
+    "otpResendFailed": "Failed to resend code"
   },
   "errors": {
     "notFound": "This page doesn't exist.",

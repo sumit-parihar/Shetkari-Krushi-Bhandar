@@ -233,7 +233,7 @@ function OTPVerificationPage({ email, onVerified, onBack }) {
       toast.success(i18n.t('toast.otpVerified'))
       onVerified()
     } catch (err) {
-      const msg = getErrorMessage(err, 'Invalid or expired code')
+      const msg = getErrorMessage(err, i18n.t('toast.otpInvalid'))
       setError(msg)
     } finally {
       setVerifying(false)
@@ -255,7 +255,7 @@ function OTPVerificationPage({ email, onVerified, onBack }) {
         })
       }, 1000)
     } catch (err) {
-      toast.error(getErrorMessage(err, 'Failed to resend code'))
+      toast.error(getErrorMessage(err, i18n.t('toast.otpResendFailed')))
     } finally {
       setResending(false)
     }
