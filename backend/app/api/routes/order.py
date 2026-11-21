@@ -8,6 +8,28 @@ from app.utils.roles import normalize_role
 from app.utils.sse import broadcast_update
 
 router = APIRouter()
+
+
+def _restore_stock(conn, order_id: int) -> None:
+    """
+    Add an order's item quantities back to product stock.
+    Call inside the same transaction that marks the order Cancelled
+    (caller commits). Products deleted since the order are skipped.
+    """
+    conn.execute(
+        """
+        UPDATE Products p
+        SET stock_quantity = p.stock_quantity + oi.qty
+        FROM (
+            SELECT product_id, SUM(quantity) AS qty
+            FROM Order_Items
+            WHERE order_id = ?
+            GROUP BY product_id
+        ) oi
+        WHERE p.product_id = oi.product_id
+        """,
+        (order_id,),
+    )
 logger = logging.getLogger(__name__)
 
 
@@ -79,10 +101,24 @@ async def place_order(request: Request, conn=Depends(get_db), user=Depends(requi
                     """,
                     (order_id, item["product_id"], item["quantity"], item["price"]),
                 )
-                conn.execute(
-                    "UPDATE Products SET stock_quantity = stock_quantity - ? WHERE product_id = ?",
-                    (item["quantity"], item["product_id"]),
-                )
+                # Conditional deduction: only succeeds if enough stock is still
+                # available at this moment. Prevents two simultaneous orders
+                # from both passing the earlier check and driving stock negative.
+                deducted = conn.execute(
+                    """
+                    UPDATE Products SET stock_quantity = stock_quantity - ?
+                    WHERE product_id = ? AND stock_quantity >= ?
+                    RETURNING product_id
+                    """,
+                    (item["quantity"], item["product_id"], item["quantity"]),
+                ).fetchone()
+                if not deducted:
+                    conn.rollback()
+                    return error_response(
+                        f"Insufficient stock for '{item['name']}'. "
+                        "It was just purchased by someone else — please update your cart.",
+                        400,
+                    )
 
             conn.execute("DELETE FROM Cart_Items WHERE cart_id = ?", (cart_id,))
             conn.commit()
@@ -204,7 +240,17 @@ async def update_order_status(
                 f"Cannot change status from {order['order_status']} to {status}", 400
             )
 
-        conn.execute("UPDATE Orders SET order_status = ? WHERE order_id = ?", (status, order_id))
+        # Conditional update: only applies if the status hasn't changed since we
+        # read it, so a concurrent cancel can't restore stock twice.
+        updated = conn.execute(
+            "UPDATE Orders SET order_status = ? WHERE order_id = ? AND order_status = ? RETURNING order_id",
+            (status, order_id, order["order_status"]),
+        ).fetchone()
+        if not updated:
+            conn.rollback()
+            return error_response("Order status was changed by someone else. Please refresh.", 409)
+        if status == "Cancelled":
+            _restore_stock(conn, order_id)
         conn.commit()
         await broadcast_update("order_status_changed", {"order_id": order_id, "new_status": status})
         return success_response(message="Order status updated successfully")
@@ -403,10 +449,21 @@ async def cancel_order(order_id: int, conn=Depends(get_db), user=Depends(require
         if order["order_status"] not in ("Pending", "Shipped"):
             return error_response("Order cannot be cancelled", 400)
 
-        conn.execute(
-            "UPDATE Orders SET order_status = 'Cancelled' WHERE order_id = ?", (order_id,)
-        )
+        # Conditional update so a double-click / concurrent cancel restores stock only once
+        cancelled = conn.execute(
+            """
+            UPDATE Orders SET order_status = 'Cancelled'
+            WHERE order_id = ? AND order_status IN ('Pending', 'Shipped')
+            RETURNING order_id
+            """,
+            (order_id,),
+        ).fetchone()
+        if not cancelled:
+            conn.rollback()
+            return error_response("Order cannot be cancelled", 400)
+        _restore_stock(conn, order_id)
         conn.commit()
+        await broadcast_update("order_status_changed", {"order_id": order_id, "new_status": "Cancelled"})
         return success_response(message="Order cancelled successfully")
 
     except Exception:
