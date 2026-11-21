@@ -169,3 +169,16 @@ def limited_api(db, db_url, tmp_path_factory):
 def test_login_rate_limit(limited_api):
     codes = [limited_api.post("/auth/login", {"email": "nobody@test.local", "password": "x"}).status for _ in range(12)]
     assert codes[:10] == [401] * 10 and 429 in codes[10:]
+
+
+def test_rate_limit_is_per_visitor_behind_cloudflare(limited_api):
+    """Each visitor (CF-Connecting-IP) has its own limit; a faked X-Forwarded-For doesn't help."""
+    def attempt(cf_ip, xff=None):
+        headers = {"CF-Connecting-IP": cf_ip}
+        if xff:
+            headers["X-Forwarded-For"] = xff
+        return limited_api.post("/auth/login", {"email": "nobody@test.local", "password": "x"}, headers=headers).status
+
+    attacker = [attempt("203.0.113.7", xff=f"198.51.100.{i}") for i in range(12)]
+    assert 429 in attacker                       # rotating X-Forwarded-For does not bypass the limit
+    assert attempt("203.0.113.8") == 401         # a different visitor is not blocked
