@@ -65,7 +65,8 @@ export default function CheckoutPage() {
   const handlePlace = async () => {
     setPlacing(true)
     try {
-      const res = await orderAPI.place({ delivery_address: address })
+      // As the hint says: a blank field means "use my registered address"
+      const res = await orderAPI.place({ delivery_address: address.trim() || user?.address || '' })
       const oid = res.data.data?.order_id || null
       setOrderId(oid)
       setConfirmedAddress(address || user?.address || '')

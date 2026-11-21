@@ -97,6 +97,12 @@ pnpm-debug.log*
 
 # Tests
 tests/
+# ...except the project's automated test suites
+!backend/tests/
+!frontend/e2e/
+.pytest_cache/
+frontend/test-results/
+frontend/playwright-report/
 
 .qwen/
 

@@ -28,8 +28,11 @@ SKB-updated/
 │   │   ├── db/connection.py   # PostgreSQL connection (psycopg2)
 │   │   ├── dependencies/      # JWT auth + role guards
 │   │   └── utils/             # email (Brevo), rate limiter, SSE, validators, responses
+│   ├── migrations/            # numbered schema changes (applied by migrate.py)
+│   ├── tests/                 # pytest API test suite
 │   ├── .env.example           # required backend variables
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── requirements-dev.txt   # test-only (pytest)
 ├── frontend/
 │   ├── src/
 │   │   ├── components/        # Navbar, Footer, UI primitives, ProductCard, route guards
@@ -38,8 +41,10 @@ SKB-updated/
 │   │   ├── pages/             # customer, delivery and admin pages
 │   │   ├── services/api.js    # Axios API layer + SSE client
 │   │   └── utils/helpers.js   # formatting, debounce, error messages
+│   ├── e2e/                   # Playwright browser smoke tests
 │   ├── .env.example
-│   └── vercel.json            # SPA rewrites for Vercel
+│   └── vercel.json            # SPA rewrites + security headers for Vercel
+├── .github/workflows/tests.yml # CI: tests + dependency audit on every push
 ├── init_db.py                 # creates tables + seeds demo data (run once)
 ├── migrate.py                 # applies backend/migrations/*.sql (schema updates)
 └── start-dev.sh               # starts backend + frontend together (Git Bash / Linux / macOS)
@@ -186,6 +191,39 @@ All endpoints are under `/api/v1`. Full, interactive docs: `/api/docs` (local de
 | Orders | customer: `POST /orders/`, `GET /orders/`, `PATCH /orders/{id}/cancel` · `GET /orders/{id}/detail` · admin: `GET /orders/admin`, `PATCH /orders/{id}`, `PATCH /orders/{id}/assign` · delivery: `GET /orders/delivery/my-orders`, `PATCH /orders/delivery/{id}/status` |
 | Dashboard | `GET /dashboard/customer` · admin: `GET /dashboard/admin`, `/dashboard/admin/report`, `/dashboard/admin/export` (CSV) |
 | Other | `GET /health`, `GET /stream/updates` (SSE) |
+
+---
+
+## Testing
+
+Both suites create their **own throwaway PostgreSQL** in Docker (Docker Desktop must be running), stub out email, and delete everything afterwards. They never read `backend/.env` and refuse Neon URLs, so the live database is never touched.
+
+### Backend API tests (pytest)
+
+```powershell
+cd backend
+.env\Scripts\Activate.ps1
+pip install -r requirements-dev.txt     # first time only
+pytest
+```
+
+47 tests covering registration + OTP, login and roles, deactivated users, cart, orders and stock (including simultaneous orders and cancel-vs-deliver races), delivery workflow, dashboards, categories, validation, live-update access control, CSV escaping, security headers, body limits, the error format, the connection pool and rate limiting. About 30 seconds.
+
+### Browser smoke tests (Playwright)
+
+```powershell
+cd frontend
+npx playwright install chromium         # first time only
+npm run test:e2e
+```
+
+Starts the database, the backend and a production build of the frontend, then tests registration with the emailed code, a customer order, the admin dashboard (also at phone width), the delivery dashboard and the public pages. About 30 seconds.
+
+Set `TEST_DATABASE_URL` to use an existing empty PostgreSQL instead of Docker, and `PYTHON` if the backend venv isn't at `backend/venv`.
+
+### Continuous integration
+
+`.github/workflows/tests.yml` runs on every push and pull request on GitHub (Actions tab): the API tests, the browser tests, and a dependency audit (`pip-audit` for the backend, `npm audit` for packages shipped to browsers). No secrets are required.
 
 ---
 

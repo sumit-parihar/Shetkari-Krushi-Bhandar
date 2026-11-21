@@ -14,8 +14,15 @@ The limiter uses the client's IP address as the key.
 It is attached to app.state.limiter in main.py so slowapi
 can handle RateLimitExceeded exceptions automatically.
 """
+import os
+
 from slowapi import Limiter
 from slowapi.util import get_remote_address
- 
-limiter = Limiter(key_func=get_remote_address)
+
+# On by default. The automated test suite sets RATE_LIMIT_ENABLED=false so it
+# can log in many times quickly (one dedicated test checks the limiter itself).
+limiter = Limiter(
+    key_func=get_remote_address,
+    enabled=os.getenv("RATE_LIMIT_ENABLED", "true").strip().lower() != "false",
+)
  
