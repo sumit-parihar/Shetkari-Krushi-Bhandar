@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { orderAPI, addUpdateListener, removeUpdateListener } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { StatusBadge, Pagination, EmptyState, TableRowSkeleton } from '../components/UI'
-import { formatCurrency, formatDateTime } from '../utils/helpers'
+import { formatCurrency, formatDateTime, getErrorMessage } from '../utils/helpers'
 import i18n from '../i18n'
 import toast from 'react-hot-toast'
  
@@ -89,7 +89,7 @@ export default function DeliveryDashboardPage() {
       fetchOrders()
       fetchHistory()
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     } finally {
       setMarkingId(null)
     }

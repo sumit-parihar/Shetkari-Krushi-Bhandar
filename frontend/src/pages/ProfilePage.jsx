@@ -6,6 +6,7 @@ import { authAPI } from '../services/api'
 import { Spinner } from '../components/UI'
 import i18n from '../i18n'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../utils/helpers'
  
 export default function ProfilePage() {
   const { t } = useTranslation()
@@ -54,7 +55,7 @@ export default function ProfilePage() {
       })
       toast.success(i18n.t('toast.profileUpdated'))
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     } finally {
       setSavingProfile(false)
     }
@@ -82,7 +83,7 @@ export default function ProfilePage() {
       toast.success(i18n.t('toast.passwordChanged'))
       setPwForm({ current_password: '', new_password: '', confirm_password: '' })
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     } finally {
       setSavingPw(false)
     }

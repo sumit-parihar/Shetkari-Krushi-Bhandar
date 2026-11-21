@@ -3,6 +3,7 @@ import { cartAPI } from '../services/api'
 import { useAuth } from './AuthContext'
 import toast from 'react-hot-toast'
 import i18n from '../i18n'
+import { getErrorMessage } from '../utils/helpers'
  
 const CartContext = createContext(null)
  
@@ -29,7 +30,7 @@ export function CartProvider({ children }) {
       toast.success(i18n.t('toast.addedToCart'))
       return true
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('toast.addToCartFailed'))
+      toast.error(getErrorMessage(err, i18n.t('toast.addToCartFailed')))
       return false
     } finally {
       setLoading(false)
@@ -44,7 +45,7 @@ export function CartProvider({ children }) {
         items: prev.items.map(i => i.cart_item_id === itemId ? { ...i, quantity } : i)
       }))
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('toast.quantityUpdateFailed'))
+      toast.error(getErrorMessage(err, i18n.t('toast.quantityUpdateFailed')))
     }
   }, [])
  

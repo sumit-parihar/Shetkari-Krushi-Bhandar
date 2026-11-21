@@ -25,3 +25,18 @@ export const debounce = (fn, delay) => {
   let t
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay) }
 }
+
+/**
+ * Pick the message to show the user for a failed API call.
+ * - 4xx: show the backend's specific reason (e.g. "only 5 in stock").
+ * - 5xx / network error / no reason given: show the translated fallback,
+ *   so users never see raw text like "Internal server error".
+ */
+export const getErrorMessage = (err, fallback) => {
+  const status = err?.response?.status
+  const reason = err?.response?.data?.error
+  if (status && status < 500 && typeof reason === 'string' && reason.trim()) {
+    return reason
+  }
+  return fallback
+}

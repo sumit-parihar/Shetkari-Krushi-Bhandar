@@ -3,7 +3,7 @@ import { Search, ChevronDown, Package, Truck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { orderAPI, authAPI, addUpdateListener, removeUpdateListener } from '../../services/api'
 import { StatusBadge, Pagination, EmptyState, TableRowSkeleton, Modal, Spinner } from '../../components/UI'
-import { formatCurrency, formatDateTime, debounce } from '../../utils/helpers'
+import { formatCurrency, formatDateTime, debounce, getErrorMessage } from '../../utils/helpers'
 import i18n from '../../i18n'
 import toast from 'react-hot-toast'
  
@@ -81,7 +81,7 @@ export default function AdminOrdersPage() {
       setUpdateModal(null)
       fetchOrders()
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     } finally {
       setUpdating(false)
     }
@@ -110,7 +110,7 @@ export default function AdminOrdersPage() {
       setAssignModal(null)
       fetchOrders()
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     } finally {
       setAssigning(false)
     }

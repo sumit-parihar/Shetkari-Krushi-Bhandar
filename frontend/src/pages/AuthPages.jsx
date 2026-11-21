@@ -7,6 +7,7 @@ import { authAPI } from '../services/api'
 import { Spinner } from '../components/UI'
 import toast from 'react-hot-toast'
 import i18n from '../i18n'
+import { getErrorMessage } from '../utils/helpers'
 
 // ─── Login Page ────────────────────────────────────────
 export function LoginPage() {
@@ -113,7 +114,7 @@ export function RegisterPage() {
       setPendingEmail(form.email)
       setStep('otp')
     } catch (err) {
-      const msg = err.response?.data?.error || err.response?.data?.message || i18n.t('toast.registrationFailed')
+      const msg = getErrorMessage(err, i18n.t('toast.registrationFailed'))
       toast.error(msg)
     } finally {
       setSubmitting(false)
@@ -232,7 +233,7 @@ function OTPVerificationPage({ email, onVerified, onBack }) {
       toast.success(i18n.t('toast.otpVerified'))
       onVerified()
     } catch (err) {
-      const msg = err.response?.data?.error || 'Invalid or expired code'
+      const msg = getErrorMessage(err, 'Invalid or expired code')
       setError(msg)
     } finally {
       setVerifying(false)
@@ -254,7 +255,7 @@ function OTPVerificationPage({ email, onVerified, onBack }) {
         })
       }, 1000)
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to resend code')
+      toast.error(getErrorMessage(err, 'Failed to resend code'))
     } finally {
       setResending(false)
     }

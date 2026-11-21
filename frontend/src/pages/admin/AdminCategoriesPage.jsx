@@ -5,6 +5,7 @@ import { categoryAPI } from '../../services/api'
 import { Modal, ConfirmDialog, EmptyState, Spinner } from '../../components/UI'
 import i18n from '../../i18n'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../../utils/helpers'
  
 export default function AdminCategoriesPage() {
   const { t } = useTranslation()
@@ -41,7 +42,7 @@ export default function AdminCategoriesPage() {
       setModalOpen(false)
       fetch()
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     } finally {
       setSubmitting(false)
     }
@@ -53,7 +54,7 @@ export default function AdminCategoriesPage() {
       toast.success(i18n.t('toast.categoryDeleted'))
       fetch()
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     }
   }
  

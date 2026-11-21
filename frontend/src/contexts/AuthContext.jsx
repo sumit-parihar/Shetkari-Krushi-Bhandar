@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect } from 'rea
 import { authAPI, connectRealTimeUpdates, disconnectRealTimeUpdates } from '../services/api'
 import toast from 'react-hot-toast'
 import i18n from '../i18n'
+import { getErrorMessage } from '../utils/helpers'
 
 const AuthContext = createContext(null)
 
@@ -27,7 +28,7 @@ export function AuthProvider({ children }) {
       toast.success(i18n.t('toast.welcomeBack', { name: userData.name }))
       return { success: true, role: userData.role }
     } catch (err) {
-      const msg = err.response?.data?.error || i18n.t('toast.loginFailed')
+      const msg = getErrorMessage(err, i18n.t('toast.loginFailed'))
       toast.error(msg)
       return { success: false, error: msg }
     } finally {
@@ -42,7 +43,7 @@ export function AuthProvider({ children }) {
       toast.success(i18n.t('toast.accountCreated'))
       return { success: true }
     } catch (err) {
-      const msg = err.response?.data?.error || i18n.t('toast.registrationFailed')
+      const msg = getErrorMessage(err, i18n.t('toast.registrationFailed'))
       toast.error(msg)
       return { success: false, error: msg }
     } finally {

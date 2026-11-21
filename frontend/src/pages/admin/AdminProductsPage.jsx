@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2, Search, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { productAPI, categoryAPI } from '../../services/api'
 import { Modal, ConfirmDialog, Pagination, EmptyState, TableRowSkeleton, Spinner } from '../../components/UI'
-import { formatCurrency, debounce } from '../../utils/helpers'
+import { formatCurrency, debounce, getErrorMessage } from '../../utils/helpers'
 import i18n from '../../i18n'
 import toast from 'react-hot-toast'
  
@@ -80,7 +80,7 @@ export default function AdminProductsPage() {
       setModalOpen(false)
       fetchProducts()
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     } finally {
       setSubmitting(false)
     }
@@ -92,7 +92,7 @@ export default function AdminProductsPage() {
       toast.success(i18n.t('toast.productDeleted'))
       fetchProducts()
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     }
   }
  

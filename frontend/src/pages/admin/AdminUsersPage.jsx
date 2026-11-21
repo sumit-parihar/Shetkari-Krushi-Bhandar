@@ -3,7 +3,7 @@ import { Search, Pencil, Trash2, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { authAPI } from '../../services/api'
 import { Modal, ConfirmDialog, Pagination, EmptyState, TableRowSkeleton, Spinner } from '../../components/UI'
-import { formatDate, debounce } from '../../utils/helpers'
+import { formatDate, debounce, getErrorMessage } from '../../utils/helpers'
 import { useAuth } from '../../contexts/AuthContext'
 import i18n from '../../i18n'
 import toast from 'react-hot-toast'
@@ -55,7 +55,7 @@ export default function AdminUsersPage() {
       setEditUser(null)
       fetchUsers()
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     } finally {
       setSubmitting(false)
     }
@@ -67,7 +67,7 @@ export default function AdminUsersPage() {
       toast.success(i18n.t('toast.userDeleted'))
       fetchUsers()
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     }
   }
  

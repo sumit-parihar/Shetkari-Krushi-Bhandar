@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { orderAPI } from '../services/api'
 import { useCart } from '../contexts/CartContext'
 import { useAuth } from '../contexts/AuthContext'
-import { formatCurrency } from '../utils/helpers'
+import { formatCurrency, getErrorMessage } from '../utils/helpers'
 import { Spinner } from '../components/UI'
 import i18n from '../i18n'
 import toast from 'react-hot-toast'
@@ -74,7 +74,7 @@ export default function CheckoutPage() {
       setDone(true)
       toast.success(i18n.t('toast.orderPlaced'))
     } catch (err) {
-      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
+      toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))
     } finally {
       setPlacing(false)
     }
