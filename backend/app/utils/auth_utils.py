@@ -42,7 +42,10 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+    raw = password.encode("utf-8")
+    if len(raw) > 72:   # bcrypt >= 5 raises instead of truncating; no valid password is this long
+        return False
+    return bcrypt.checkpw(raw, hashed.encode("utf-8"))
 
 
 def create_access_token(user_id: int, role: str) -> str:

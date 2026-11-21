@@ -1,4 +1,6 @@
 import axios from 'axios'
+import toast from 'react-hot-toast'
+import i18n from '../i18n'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -15,7 +17,9 @@ export function connectRealTimeUpdates() {
   const token = storage.getItem('skb_token')
   if (!token) return null
 
-  eventSource = new EventSource(`${BASE_URL}/stream/updates`)
+  // EventSource can't send an Authorization header, so the token goes in the URL.
+  // The server only sends this user the events they are allowed to see.
+  eventSource = new EventSource(`${BASE_URL}/stream/updates?token=${encodeURIComponent(token)}`)
 
   eventSource.onmessage = (event) => {
     try {
@@ -52,14 +56,43 @@ export function removeUpdateListener(listener) {
 const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 10000, // 10s — suitable for paid tier (always-on server)
+  // 60s: Render's free tier sleeps when idle and needs ~30-50s to wake up
+  timeout: 60000,
 })
+
+// ── "Server is waking up" notice ───────────────────────
+// If a request is still pending after a few seconds, tell the user why.
+const SLOW_REQUEST_MS = 5000
+const WAKING_TOAST_ID = 'server-waking'
+let pendingSlowTimers = 0
+
+function startSlowTimer(config) {
+  config.__slowTimer = setTimeout(() => {
+    pendingSlowTimers += 1
+    config.__slowShown = true
+    toast.loading(i18n.t('toast.serverWaking'), { id: WAKING_TOAST_ID })
+  }, SLOW_REQUEST_MS)
+}
+
+function stopSlowTimer(config) {
+  if (!config) return
+  clearTimeout(config.__slowTimer)
+  if (config.__slowShown) {
+    config.__slowShown = false
+    pendingSlowTimers -= 1
+    if (pendingSlowTimers <= 0) {
+      pendingSlowTimers = 0
+      toast.dismiss(WAKING_TOAST_ID)
+    }
+  }
+}
 
 // ── Request interceptor — attach JWT ───────────────────
 api.interceptors.request.use(
   (config) => {
     const token = storage.getItem('skb_token')
     if (token) config.headers.Authorization = `Bearer ${token}`
+    startSlowTimer(config)
     return config
   },
   (error) => Promise.reject(error)
@@ -67,8 +100,9 @@ api.interceptors.request.use(
 
 // ── Response interceptor — handle 401 ─────────────────
 api.interceptors.response.use(
-  (res) => res,
+  (res) => { stopSlowTimer(res.config); return res },
   (error) => {
+    stopSlowTimer(error.config)
     const url = error.config?.url || ''
     const isAuthRoute = url.includes('/auth/login') || url.includes('/auth/register')
 
@@ -144,6 +178,7 @@ export const orderAPI = {
   updateStatus:       (id, data)   => api.patch(`/api/v1/orders/${id}`,               data),
   assignDeliveryBoy:  (id, data)   => api.patch(`/api/v1/orders/${id}/assign`,         data),
   myAssignedOrders:   (params)     => api.get('/api/v1/orders/delivery/my-orders',     { params }),
+  deliverySummary:    ()           => api.get('/api/v1/orders/delivery/summary'),
   deliveryUpdateStatus:(id, data)  => api.patch(`/api/v1/orders/delivery/${id}/status`, data),
 }
 

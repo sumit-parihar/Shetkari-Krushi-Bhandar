@@ -37,3 +37,14 @@ def success_response(data=None, message: str = None, status_code: int = 200):
 def error_response(message: str, status_code: int = 400):
     content = {"success": False, "data": None, "message": None, "error": message}
     return _JSONResponse(content=content, status_code=status_code)
+
+
+class APIError(Exception):
+    """
+    Raise from dependencies/helpers to return a standard error_response.
+    Handled in main.py so the body always has the {"error": ...} shape.
+    """
+    def __init__(self, message: str, status_code: int = 400):
+        super().__init__(message)
+        self.message     = message
+        self.status_code = status_code

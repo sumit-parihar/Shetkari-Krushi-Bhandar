@@ -1,6 +1,7 @@
 import logging
 from fastapi import APIRouter, Request, Depends
 from app.db.connection import get_db
+from app.dependencies.body import json_body
 from app.dependencies.auth import require_admin
 from app.utils.response import success_response, error_response
 
@@ -13,7 +14,7 @@ MAX_DESCRIPTION   = 500
 
 # ── LIST ALL CATEGORIES ───────────────────────────────
 @router.get("/")
-async def list_categories(conn=Depends(get_db)):
+def list_categories(conn=Depends(get_db)):
     try:
         rows = conn.execute(
             "SELECT category_id, category_name, description FROM Categories ORDER BY category_name"
@@ -26,7 +27,7 @@ async def list_categories(conn=Depends(get_db)):
 
 # ── GET SINGLE CATEGORY ───────────────────────────────
 @router.get("/{category_id}")
-async def get_category(category_id: int, conn=Depends(get_db)):
+def get_category(category_id: int, conn=Depends(get_db)):
     try:
         row = conn.execute(
             "SELECT category_id, category_name, description FROM Categories WHERE category_id = ?",
@@ -42,11 +43,7 @@ async def get_category(category_id: int, conn=Depends(get_db)):
 
 # ── ADD CATEGORY (Admin) ──────────────────────────────
 @router.post("/")
-async def add_category(request: Request, conn=Depends(get_db), admin=Depends(require_admin)):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
+def add_category(conn=Depends(get_db), admin=Depends(require_admin), data: dict = Depends(json_body)):
 
     name = str(data.get("category_name", "") or "").strip()
     if not name:
@@ -73,13 +70,9 @@ async def add_category(request: Request, conn=Depends(get_db), admin=Depends(req
 
 # ── UPDATE CATEGORY (Admin) ───────────────────────────
 @router.put("/{category_id}")
-async def update_category(
-    category_id: int, request: Request, conn=Depends(get_db), admin=Depends(require_admin)
+def update_category(
+    category_id: int, conn=Depends(get_db), admin=Depends(require_admin), data: dict = Depends(json_body)
 ):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
 
     if not data:
         return error_response("Invalid JSON body", 400)
@@ -116,7 +109,7 @@ async def update_category(
 
 # ── DELETE CATEGORY (Admin) ───────────────────────────
 @router.delete("/{category_id}")
-async def delete_category(category_id: int, conn=Depends(get_db), admin=Depends(require_admin)):
+def delete_category(category_id: int, conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         if not conn.execute(
             "SELECT 1 FROM Categories WHERE category_id = ?", (category_id,)

@@ -1,6 +1,8 @@
 import logging
+import math
 from fastapi import APIRouter, Request, Depends
 from app.db.connection import get_db
+from app.dependencies.body import json_body
 from app.utils.response import success_response, error_response
 from app.utils.validators import validate_pagination
 from app.dependencies.auth import require_admin
@@ -38,10 +40,13 @@ def _validate_product_fields(data: dict, require_all: bool = True) -> str | None
 
     if price is not None:
         try:
-            if float(price) < 0:
-                return "price must be 0 or greater"
+            value = float(price)
         except (TypeError, ValueError):
             return "price must be a valid number"
+        if not math.isfinite(value):
+            return "price must be a valid number"
+        if value < 0:
+            return "price must be 0 or greater"
 
     if stock is not None:
         try:
@@ -55,7 +60,7 @@ def _validate_product_fields(data: dict, require_all: bool = True) -> str | None
 
 # ── GET PRODUCTS (paginated) ──────────────────────────
 @router.get("/")
-async def get_products(request: Request, conn=Depends(get_db)):
+def get_products(request: Request, conn=Depends(get_db)):
     params    = request.query_params
     page, page_size, err = validate_pagination(params.get("page", 1), params.get("page_size", 10))
     if err:
@@ -88,7 +93,7 @@ async def get_products(request: Request, conn=Depends(get_db)):
 
 # ── SEARCH PRODUCTS ───────────────────────────────────
 @router.get("/search")
-async def search_products(request: Request, conn=Depends(get_db)):
+def search_products(request: Request, conn=Depends(get_db)):
     params = request.query_params
     try:
         keyword     = params.get("keyword")
@@ -115,7 +120,7 @@ async def search_products(request: Request, conn=Depends(get_db)):
         query_params = []
 
         if keyword:
-            where += " AND p.name LIKE ?"
+            where += " AND p.name ILIKE ?"
             query_params.append(f"%{keyword}%")
         if category_id:
             where += " AND p.category_id = ?"
@@ -170,11 +175,7 @@ async def search_products(request: Request, conn=Depends(get_db)):
 
 # ── ADD PRODUCT (Admin) ───────────────────────────────
 @router.post("/")
-async def add_product(request: Request, conn=Depends(get_db), admin=Depends(require_admin)):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
+def add_product(conn=Depends(get_db), admin=Depends(require_admin), data: dict = Depends(json_body)):
 
     if not data:
         return error_response("Invalid JSON body", 400)
@@ -217,13 +218,9 @@ async def add_product(request: Request, conn=Depends(get_db), admin=Depends(requ
 
 # ── UPDATE PRODUCT (Admin) ────────────────────────────
 @router.put("/{product_id}")
-async def update_product(
-    product_id: int, request: Request, conn=Depends(get_db), admin=Depends(require_admin)
+def update_product(
+    product_id: int, conn=Depends(get_db), admin=Depends(require_admin), data: dict = Depends(json_body)
 ):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
 
     if not data:
         return error_response("Invalid JSON body", 400)
@@ -275,7 +272,7 @@ async def update_product(
 
 # ── DELETE PRODUCT (Admin) ────────────────────────────
 @router.delete("/{product_id}")
-async def delete_product(product_id: int, conn=Depends(get_db), admin=Depends(require_admin)):
+def delete_product(product_id: int, conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         if not conn.execute("SELECT 1 FROM Products WHERE product_id = ?", (product_id,)).fetchone():
             return error_response("Product not found", 404)
@@ -290,7 +287,7 @@ async def delete_product(product_id: int, conn=Depends(get_db), admin=Depends(re
 
 # ── GET PRODUCT BY ID ─────────────────────────────────
 @router.get("/{product_id}")
-async def get_product_by_id(product_id: int, conn=Depends(get_db)):
+def get_product_by_id(product_id: int, conn=Depends(get_db)):
     try:
         product = conn.execute(
             """

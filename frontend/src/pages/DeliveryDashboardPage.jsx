@@ -45,16 +45,9 @@ export default function DeliveryDashboardPage() {
  
   const fetchHistory = useCallback(() => {
     setHistLoading(true)
-    orderAPI.myAssignedOrders({ page: 1, limit: 1000 })
-      .then(r => {
-        const all = r.data.data?.orders || []
-        setSummary({
-          total:     all.length,
-          pending:   all.filter(o => o.order_status === 'Pending').length,
-          shipped:   all.filter(o => o.order_status === 'Shipped').length,
-          delivered: all.filter(o => o.order_status === 'Delivered').length,
-        })
-      })
+    // Counts come from a dedicated endpoint (the order list is paginated, max 100)
+    orderAPI.deliverySummary()
+      .then(r => setSummary(r.data.data))
       .catch(() => {})
  
     orderAPI.myAssignedOrders({ page: histPage, limit: histLimit, status: 'Delivered' })

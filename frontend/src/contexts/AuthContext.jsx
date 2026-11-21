@@ -58,6 +58,16 @@ export function AuthProvider({ children }) {
     toast.success(i18n.t('toast.loggedOut'))
   }, [])
 
+  // Merge changed profile fields into the logged-in user (navbar, forms, storage)
+  const updateUser = useCallback((changes) => {
+    setUser(prev => {
+      if (!prev) return prev
+      const next = { ...prev, ...changes }
+      storage.setItem('skb_user', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
   // Called by api.js interceptor when a 401 is received
   // Shows a translated toast before clearing the session
   const handleSessionExpired = useCallback(() => {
@@ -94,7 +104,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, login, register, logout, loading,
+      user, login, register, logout, loading, updateUser,
       isAdmin, isCustomer, isDeliveryBoy, isLoggedIn,
     }}>
       {children}

@@ -1,9 +1,12 @@
+import hashlib
+import hmac
 import logging
-import random
-import string
+import secrets
+import threading
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Request, Depends
 from app.db.connection import get_db
+from app.dependencies.body import json_body
 from app.dependencies.auth import require_admin, require_user
 from app.utils.response import success_response, error_response
 from app.utils.auth_utils import hash_password, verify_password, generate_jwt
@@ -17,14 +20,47 @@ logger = logging.getLogger(__name__)
 
 MAX_NAME     = 100
 MAX_EMAIL    = 255
-MAX_PASSWORD = 128
+MAX_PASSWORD_BYTES = 72   # bcrypt only accepts up to 72 bytes
 MAX_PHONE    = 20
 MAX_ADDRESS  = 500
 OTP_EXPIRY_MINUTES = 10
+OTP_MAX_ATTEMPTS   = 5     # wrong codes allowed per pending registration
 
 
 def _generate_otp() -> str:
-    return ''.join(random.choices(string.digits, k=6))
+    """6-digit code from a cryptographically secure source."""
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _hash_otp(email: str, otp: str) -> str:
+    """Store only a hash of the code, never the code itself."""
+    return hashlib.sha256(f"{email}:{otp}".encode("utf-8")).hexdigest()
+
+
+def _otp_matches(email: str, otp: str, stored: str) -> bool:
+    if len(stored) == 6:   # rows created before hashing was introduced
+        return hmac.compare_digest(stored, otp)
+    return hmac.compare_digest(stored, _hash_otp(email, otp))
+
+
+# Wrong-code counter per email (in memory; resets on new code or restart)
+_otp_failures: dict[str, int] = {}
+_otp_lock = threading.Lock()
+
+
+def _otp_fail(email: str) -> int:
+    with _otp_lock:
+        _otp_failures[email] = _otp_failures.get(email, 0) + 1
+        return _otp_failures[email]
+
+
+def _otp_reset(email: str) -> None:
+    with _otp_lock:
+        _otp_failures.pop(email, None)
+
+
+def password_too_long(password: str) -> bool:
+    return len(password.encode("utf-8")) > MAX_PASSWORD_BYTES
 
 
 def _validate_register_fields(data: dict) -> str | None:
@@ -41,7 +77,7 @@ def _validate_register_fields(data: dict) -> str | None:
     if "@" not in email or "." not in email.split("@")[-1]: return "valid email is required"
     if not password:                                    return "password is required"
     if len(password) < 6:                               return "password must be at least 6 characters"
-    if len(password) > MAX_PASSWORD:                    return f"password must be {MAX_PASSWORD} characters or fewer"
+    if password_too_long(password):                     return f"password must be {MAX_PASSWORD_BYTES} characters or fewer"
     if phone   and len(phone)   > MAX_PHONE:            return f"phone must be {MAX_PHONE} characters or fewer"
     if address and len(address) > MAX_ADDRESS:          return f"address must be {MAX_ADDRESS} characters or fewer"
     return None
@@ -50,11 +86,7 @@ def _validate_register_fields(data: dict) -> str | None:
 # ── REGISTER — Step 1: validate + send OTP ────────────
 @router.post("/register")
 @limiter.limit("10/minute")
-async def register(request: Request, conn=Depends(get_db)):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
+def register(request: Request, conn=Depends(get_db), data: dict = Depends(json_body)):
 
     if not data:
         return error_response("Invalid JSON body", 400)
@@ -91,9 +123,10 @@ async def register(request: Request, conn=Depends(get_db)):
             INSERT INTO OTP_Verifications (email, otp, name, password, phone, address, expires_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
-            (email, otp, name, hashed_pw, phone, address, expires_at),
+            (email, _hash_otp(email, otp), name, hashed_pw, phone, address, expires_at),
         )
         conn.commit()
+        _otp_reset(email)
 
         # Send OTP email
         sent = send_otp_email(to_email=email, otp=otp, name=name)
@@ -116,11 +149,7 @@ async def register(request: Request, conn=Depends(get_db)):
 # ── VERIFY OTP — Step 2: verify code + create account ─
 @router.post("/verify-otp")
 @limiter.limit("10/minute")
-async def verify_otp(request: Request, conn=Depends(get_db)):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
+def verify_otp(request: Request, conn=Depends(get_db), data: dict = Depends(json_body)):
 
     email = str(data.get("email", "")).strip().lower()
     otp   = str(data.get("otp",   "")).strip()
@@ -131,16 +160,24 @@ async def verify_otp(request: Request, conn=Depends(get_db)):
     try:
         record = conn.execute(
             """
-            SELECT id, name, password, phone, address, expires_at
+            SELECT id, otp, name, password, phone, address, expires_at
             FROM OTP_Verifications
-            WHERE email = %s AND otp = %s
+            WHERE email = %s
             ORDER BY created_at DESC
             LIMIT 1
             """,
-            (email, otp),
+            (email,),
         ).fetchone()
 
         if not record:
+            return error_response("Invalid verification code", 400)
+
+        if not _otp_matches(email, otp, record["otp"]):
+            if _otp_fail(email) >= OTP_MAX_ATTEMPTS:
+                conn.execute("DELETE FROM OTP_Verifications WHERE email = %s", (email,))
+                conn.commit()
+                _otp_reset(email)
+                return error_response("Too many incorrect attempts. Please register again.", 429)
             return error_response("Invalid verification code", 400)
 
         # Check expiry
@@ -180,6 +217,7 @@ async def verify_otp(request: Request, conn=Depends(get_db)):
         # Clean up OTP
         conn.execute("DELETE FROM OTP_Verifications WHERE email = %s", (email,))
         conn.commit()
+        _otp_reset(email)
 
         return success_response(message="Email verified successfully! You can now log in.")
 
@@ -192,11 +230,7 @@ async def verify_otp(request: Request, conn=Depends(get_db)):
 # ── RESEND OTP ─────────────────────────────────────────
 @router.post("/resend-otp")
 @limiter.limit("5/minute")
-async def resend_otp(request: Request, conn=Depends(get_db)):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
+def resend_otp(request: Request, conn=Depends(get_db), data: dict = Depends(json_body)):
 
     email = str(data.get("email", "")).strip().lower()
     if not email:
@@ -216,9 +250,10 @@ async def resend_otp(request: Request, conn=Depends(get_db)):
 
         conn.execute(
             "UPDATE OTP_Verifications SET otp = %s, expires_at = %s WHERE email = %s",
-            (otp, expires_at, email),
+            (_hash_otp(email, otp), expires_at, email),
         )
         conn.commit()
+        _otp_reset(email)
 
         sent = send_otp_email(to_email=email, otp=otp, name=record["name"])
         if not sent:
@@ -235,11 +270,7 @@ async def resend_otp(request: Request, conn=Depends(get_db)):
 # ── LOGIN ─────────────────────────────────────────────
 @router.post("/login")
 @limiter.limit("10/minute")
-async def login(request: Request, conn=Depends(get_db)):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
+def login(request: Request, conn=Depends(get_db), data: dict = Depends(json_body)):
 
     if not data:
         return error_response("Invalid JSON body", 400)
@@ -295,11 +326,7 @@ async def login(request: Request, conn=Depends(get_db)):
 
 # ── UPDATE OWN PROFILE ────────────────────────────────
 @router.put("/profile")
-async def update_own_profile(request: Request, conn=Depends(get_db), user=Depends(require_user)):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
+def update_own_profile(conn=Depends(get_db), user=Depends(require_user), data: dict = Depends(json_body)):
 
     user_id = user["user_id"]
     try:
@@ -345,18 +372,14 @@ async def update_own_profile(request: Request, conn=Depends(get_db), user=Depend
 
 # ── CHANGE OWN PASSWORD ───────────────────────────────
 @router.put("/change-password")
-async def change_password(request: Request, conn=Depends(get_db), user=Depends(require_user)):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
+def change_password(conn=Depends(get_db), user=Depends(require_user), data: dict = Depends(json_body)):
 
     current_password = data.get("current_password", "")
     new_password     = data.get("new_password",     "")
 
     if not current_password:                   return error_response("Current password is required", 400)
     if not new_password or len(new_password) < 6: return error_response("New password must be at least 6 characters", 400)
-    if len(new_password) > MAX_PASSWORD:       return error_response(f"Password must be {MAX_PASSWORD} characters or fewer", 400)
+    if password_too_long(new_password):        return error_response(f"Password must be {MAX_PASSWORD_BYTES} characters or fewer", 400)
 
     try:
         row = conn.execute(
@@ -383,7 +406,7 @@ async def change_password(request: Request, conn=Depends(get_db), user=Depends(r
 
 # ── ADMIN: LIST USERS ─────────────────────────────────
 @router.get("/users")
-async def list_users(request: Request, conn=Depends(get_db), admin=Depends(require_admin)):
+def list_users(request: Request, conn=Depends(get_db), admin=Depends(require_admin)):
     params = request.query_params
     page, page_size, err = validate_pagination(params.get("page", 1), params.get("page_size", 10))
     if err:
@@ -397,7 +420,7 @@ async def list_users(request: Request, conn=Depends(get_db), admin=Depends(requi
         base = "FROM Users WHERE 1=1"
         qp: list = []
         if search:
-            base += " AND (name LIKE %s OR email LIKE %s)"
+            base += " AND (name ILIKE %s OR email ILIKE %s)"
             qp.extend([f"%{search}%", f"%{search}%"])
         if role_filter:
             base += " AND role = %s"
@@ -431,7 +454,7 @@ async def list_users(request: Request, conn=Depends(get_db), admin=Depends(requi
 
 # ── ADMIN: DELETE USER ────────────────────────────────
 @router.delete("/users/{user_id}")
-async def admin_delete_user(user_id: int, conn=Depends(get_db), admin=Depends(require_admin)):
+def admin_delete_user(user_id: int, conn=Depends(get_db), admin=Depends(require_admin)):
     if user_id == admin["user_id"]:
         return error_response("You cannot delete your own account", 400)
     try:
@@ -449,13 +472,9 @@ async def admin_delete_user(user_id: int, conn=Depends(get_db), admin=Depends(re
 
 # ── ADMIN: UPDATE USER ────────────────────────────────
 @router.put("/users/{user_id}")
-async def admin_update_user(
-    user_id: int, request: Request, conn=Depends(get_db), admin=Depends(require_admin)
+def admin_update_user(
+    user_id: int, conn=Depends(get_db), admin=Depends(require_admin), data: dict = Depends(json_body)
 ):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
 
     if not data:
         return error_response("Invalid JSON body", 400)
@@ -501,7 +520,7 @@ async def admin_update_user(
 
 # ── ADMIN: LIST DELIVERY BOYS ─────────────────────────
 @router.get("/delivery-boys")
-async def list_delivery_boys(conn=Depends(get_db), admin=Depends(require_admin)):
+def list_delivery_boys(conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         rows = conn.execute(
             "SELECT user_id, name, email, phone FROM Users WHERE role = 'delivery_boy' ORDER BY name"

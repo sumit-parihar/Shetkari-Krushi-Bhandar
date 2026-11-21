@@ -11,9 +11,19 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _csv_safe(value):
+    """
+    Stop spreadsheet apps from executing user-supplied text as a formula
+    (e.g. a customer named '=HYPERLINK(...)').
+    """
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 # ── CUSTOMER DASHBOARD ────────────────────────────────────
 @router.get("/customer")
-async def customer_dashboard(conn=Depends(get_db), user=Depends(require_customer)):
+def customer_dashboard(conn=Depends(get_db), user=Depends(require_customer)):
     user_id = user["user_id"]
     try:
         total_orders = conn.execute(
@@ -54,7 +64,7 @@ async def customer_dashboard(conn=Depends(get_db), user=Depends(require_customer
 
 # ── ADMIN DASHBOARD ───────────────────────────────────────
 @router.get("/admin")
-async def admin_dashboard(conn=Depends(get_db), admin=Depends(require_admin)):
+def admin_dashboard(conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         total_orders = conn.execute(
             "SELECT COUNT(*) as count FROM Orders"
@@ -89,7 +99,7 @@ async def admin_dashboard(conn=Depends(get_db), admin=Depends(require_admin)):
 #   strftime('%Y-%m', ...) → to_char(..., 'YYYY-MM')
 #   date('now', '-12 months') → NOW() - INTERVAL '12 months'
 @router.get("/admin/report")
-async def admin_report(conn=Depends(get_db), admin=Depends(require_admin)):
+def admin_report(conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         monthly = conn.execute(
             """
@@ -163,7 +173,7 @@ async def admin_report(conn=Depends(get_db), admin=Depends(require_admin)):
 
 # ── EXPORT ORDERS AS CSV ──────────────────────────────────
 @router.get("/admin/export")
-async def admin_export(conn=Depends(get_db), admin=Depends(require_admin)):
+def admin_export(conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         orders = conn.execute(
             """
@@ -189,11 +199,11 @@ async def admin_export(conn=Depends(get_db), admin=Depends(require_admin)):
             "Payment", "Date", "Delivery Address", "Delivery Boy",
         ])
         for o in orders:
-            writer.writerow([
+            writer.writerow([_csv_safe(v) for v in (
                 o["order_id"],     o["customer"],        o["total_amount"],
                 o["order_status"], o["payment_method"],  o["order_date"],
                 o["delivery_address"] or "",             o["delivery_boy"],
-            ])
+            )])
 
         output.seek(0)
         return StreamingResponse(

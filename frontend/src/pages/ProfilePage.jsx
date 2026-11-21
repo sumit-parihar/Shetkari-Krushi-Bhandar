@@ -10,7 +10,7 @@ import { getErrorMessage } from '../utils/helpers'
  
 export default function ProfilePage() {
   const { t } = useTranslation()
-  const { user } = useAuth()
+  const { user, updateUser } = useAuth()
   const [profileForm, setProfileForm] = useState({ name: '', email: '', phone: '', address: '' })
   const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm_password: '' })
   const [profileErrors, setProfileErrors] = useState({})
@@ -47,12 +47,14 @@ export default function ProfilePage() {
     if (!validateProfile()) return
     setSavingProfile(true)
     try {
-      await authAPI.updateProfile({
+      const changes = {
         name: profileForm.name.trim(),
         email: profileForm.email.trim(),
         phone: profileForm.phone.trim() || null,
         address: profileForm.address.trim() || null,
-      })
+      }
+      await authAPI.updateProfile(changes)
+      updateUser(changes)
       toast.success(i18n.t('toast.profileUpdated'))
     } catch (err) {
       toast.error(getErrorMessage(err, i18n.t('errors.somethingWrong')))

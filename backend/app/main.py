@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "").strip()
 SECRET_KEY   = os.getenv("SECRET_KEY",   "").strip()
 
+_is_dev  = os.getenv("ENV", "production").lower() in ("dev", "development", "local")
 _missing = [k for k, v in [("FRONTEND_URL", FRONTEND_URL), ("SECRET_KEY", SECRET_KEY)] if not v]
 if _missing:
     # In dev mode allow fallback; in production crash loudly
-    _is_dev = os.getenv("ENV", "production").lower() in ("dev", "development", "local")
     if not _is_dev:
         raise RuntimeError(
             f"Missing required environment variables: {', '.join(_missing)}. "
@@ -39,8 +39,12 @@ if _missing:
 
 # ── Import routers ─────────────────────────────────────────
 from app.api.routes import auth, product, cart, order, dashboard, categories
-from app.utils.sse import subscribers
+from app.utils.sse import subscribers, Subscriber, MAX_CONNECTIONS_PER_USER
 from app.utils.rate_limiter import limiter  # shared instance used by route decorators
+from app.utils.response import APIError, error_response
+from app.db.connection import _new_connection, DBConnection
+from app.dependencies.auth import user_from_token
+from fastapi import HTTPException
 
 # ── App ────────────────────────────────────────────────────
 app = FastAPI(
@@ -55,16 +59,21 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+@app.exception_handler(APIError)
+async def api_error_handler(request: Request, exc: APIError):
+    return error_response(exc.message, exc.status_code)
+
 # ── CORS ───────────────────────────────────────────────────
 # Build allowed origins from env — supports comma-separated list
 _raw_origins = os.getenv("FRONTEND_URL", FRONTEND_URL)
 _allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
-# Always allow localhost in development
-if "http://localhost:3000" not in _allowed_origins:
-    _allowed_origins.append("http://localhost:3000")
-if "http://localhost:5173" not in _allowed_origins:
-    _allowed_origins.append("http://localhost:5173")
+# Allow local dev servers only in development, never in production
+if _is_dev:
+    for _o in ("http://localhost:3000", "http://localhost:5173"):
+        if _o not in _allowed_origins:
+            _allowed_origins.append(_o)
 
 logger.info("CORS allowed origins: %s", _allowed_origins)
 
@@ -109,21 +118,52 @@ def health():
     return {"status": "ok"}
 
 # ── SSE real-time updates ──────────────────────────────────
+SSE_PING_SECONDS = 20
+
+
+def _sse_user(token: str) -> dict:
+    """Validate the stream token with a short-lived DB connection."""
+    conn = DBConnection(_new_connection())
+    try:
+        return user_from_token(token, conn)
+    finally:
+        conn.close()
+
+
 @app.get("/stream/updates")
-async def stream_updates(request: Request):
-    """Server-Sent Events endpoint for real-time updates."""
-    queue = asyncio.Queue()
-    subscribers.add(queue)
+async def stream_updates(request: Request, token: str = ""):
+    """
+    Server-Sent Events for live order updates.
+    EventSource can't send headers, so the JWT comes as ?token=.
+    Each user only receives events they are allowed to see (see utils/sse.py).
+    """
+    if not token:
+        return error_response("Not authenticated", 401)
+    try:
+        user = await asyncio.to_thread(_sse_user, token)
+    except HTTPException as e:
+        return error_response(str(e.detail), e.status_code)
+
+    if subscribers.count_for(user["user_id"]) >= MAX_CONNECTIONS_PER_USER:
+        return error_response("Too many open live-update connections", 429)
+
+    sub = Subscriber(user["user_id"], user["role"])
+    subscribers.add(sub)
 
     async def event_generator():
         try:
             while True:
                 if await request.is_disconnected():
                     break
-                message = await queue.get()
-                yield message
+                try:
+                    message = await asyncio.wait_for(sub.queue.get(), timeout=SSE_PING_SECONDS)
+                    yield message
+                except asyncio.TimeoutError:
+                    # Comment line keeps proxies from closing idle connections
+                    # and lets us notice disconnected clients.
+                    yield ": ping\n\n"
         finally:
-            subscribers.remove(queue)
+            subscribers.remove(sub)
 
     return StreamingResponse(
         event_generator(),

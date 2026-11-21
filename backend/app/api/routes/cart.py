@@ -1,6 +1,7 @@
 import logging
 from fastapi import APIRouter, Request, Depends
 from app.db.connection import get_db
+from app.dependencies.body import json_body
 from app.utils.response import success_response, error_response
 from app.dependencies.auth import require_customer
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # ── GET CART ──────────────────────────────────────────
 @router.get("/")
-async def get_cart(conn=Depends(get_db), user=Depends(require_customer)):
+def get_cart(conn=Depends(get_db), user=Depends(require_customer)):
     user_id = user["user_id"]
     try:
         cart = conn.execute("SELECT cart_id FROM Cart WHERE user_id = ?", (user_id,)).fetchone()
@@ -43,12 +44,8 @@ async def get_cart(conn=Depends(get_db), user=Depends(require_customer)):
 
 # ── ADD TO CART ───────────────────────────────────────
 @router.post("/")
-async def add_to_cart(request: Request, conn=Depends(get_db), user=Depends(require_customer)):
+def add_to_cart(conn=Depends(get_db), user=Depends(require_customer), data: dict = Depends(json_body)):
     user_id = user["user_id"]
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
 
     if not data or "product_id" not in data or "quantity" not in data:
         return error_response("product_id and quantity are required", 400)
@@ -112,14 +109,10 @@ async def add_to_cart(request: Request, conn=Depends(get_db), user=Depends(requi
 
 # ── UPDATE CART ITEM QUANTITY ─────────────────────────
 @router.patch("/{cart_item_id}")
-async def update_cart_item(
-    cart_item_id: int, request: Request, conn=Depends(get_db), user=Depends(require_customer)
+def update_cart_item(
+    cart_item_id: int, conn=Depends(get_db), user=Depends(require_customer), data: dict = Depends(json_body)
 ):
     user_id = user["user_id"]
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
 
     if not data or "quantity" not in data:
         return error_response("quantity is required", 400)
@@ -168,7 +161,7 @@ async def update_cart_item(
 
 # ── REMOVE CART ITEM ──────────────────────────────────
 @router.delete("/{cart_item_id}")
-async def remove_cart_item(
+def remove_cart_item(
     cart_item_id: int, conn=Depends(get_db), user=Depends(require_customer)
 ):
     user_id = user["user_id"]

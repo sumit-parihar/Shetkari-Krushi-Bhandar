@@ -506,6 +506,7 @@
     "deliveryBoyReassigned": "Delivery boy reassigned for Order #{{orderId}}",
     "deliveryBoyRemoved": "Delivery boy removed from Order #{{orderId}}",
     "sessionExpired": "Session expired. Please log in again.",
+    "serverWaking": "Server is waking up, this can take up to a minute…",
     "otpSent": "Verification code sent to your email!",
     "otpVerified": "Email verified! Please log in.",
     "otpResent": "New code sent to your email!",

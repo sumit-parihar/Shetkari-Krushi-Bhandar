@@ -1,35 +1,37 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
-export function RequireAuth({ children }) {
-  const { isLoggedIn } = useAuth()
+// Landing page for each role. Sending a user who opened the wrong area to
+// their own home (instead of another guarded page) avoids redirect chains
+// that end on a blank page.
+export function homeForRole(role) {
+  if (role === 'admin') return '/admin'
+  if (role === 'delivery_boy') return '/delivery'
+  return '/dashboard'
+}
+
+function Guard({ allow, children }) {
+  const { isLoggedIn, user } = useAuth()
   const location = useLocation()
   if (!isLoggedIn) return <Navigate to="/login" state={{ from: location }} replace />
+  if (allow && user?.role !== allow) return <Navigate to={homeForRole(user?.role)} replace />
   return children
+}
+
+export function RequireAuth({ children }) {
+  return <Guard>{children}</Guard>
 }
 
 export function RequireCustomer({ children }) {
-  const { isLoggedIn, isCustomer } = useAuth()
-  const location = useLocation()
-  if (!isLoggedIn) return <Navigate to="/login" state={{ from: location }} replace />
-  if (!isCustomer) return <Navigate to="/admin" replace />
-  return children
+  return <Guard allow="customer">{children}</Guard>
 }
 
 export function RequireAdmin({ children }) {
-  const { isLoggedIn, isAdmin } = useAuth()
-  const location = useLocation()
-  if (!isLoggedIn) return <Navigate to="/login" state={{ from: location }} replace />
-  if (!isAdmin) return <Navigate to="/dashboard" replace />
-  return children
+  return <Guard allow="admin">{children}</Guard>
 }
 
 export function RequireDeliveryBoy({ children }) {
-  const { isLoggedIn, isDeliveryBoy } = useAuth()
-  const location = useLocation()
-  if (!isLoggedIn) return <Navigate to="/login" state={{ from: location }} replace />
-  if (!isDeliveryBoy) return <Navigate to="/" replace />
-  return children
+  return <Guard allow="delivery_boy">{children}</Guard>
 }
 
 export function RedirectIfLoggedIn({ children }) {

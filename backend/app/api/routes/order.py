@@ -1,11 +1,12 @@
 import logging
 from fastapi import APIRouter, Request, Depends
 from app.db.connection import get_db
+from app.dependencies.body import json_body, optional_json_body
 from app.utils.response import success_response, error_response
 from app.utils.validators import validate_page_limit
 from app.dependencies.auth import require_user, require_admin, require_customer, require_delivery_boy
 from app.utils.roles import normalize_role
-from app.utils.sse import broadcast_update
+from app.utils.sse import notify
 
 router = APIRouter()
 
@@ -30,22 +31,43 @@ def _restore_stock(conn, order_id: int) -> None:
         """,
         (order_id,),
     )
+
+
+def _attach_items(conn, orders, fields):
+    """
+    Fetch the items of all given orders in ONE query (instead of one query
+    per order) and return dicts with the requested order fields + items.
+    """
+    order_ids = [o["order_id"] for o in orders]
+    by_order = {oid: [] for oid in order_ids}
+    if order_ids:
+        rows = conn.execute(
+            """
+            SELECT oi.order_id, oi.product_id, p.name, oi.quantity, oi.price
+            FROM Order_Items oi
+            JOIN Products p ON oi.product_id = p.product_id
+            WHERE oi.order_id = ANY(?)
+            ORDER BY oi.order_item_id
+            """,
+            (order_ids,),
+        ).fetchall()
+        for r in rows:
+            item = dict(r)
+            by_order[item.pop("order_id")].append(item)
+    return [{**{f: o[f] for f in fields}, "items": by_order[o["order_id"]]} for o in orders]
+
+
 logger = logging.getLogger(__name__)
 
 
 # ── PLACE ORDER (Customer, COD) ───────────────────────
 @router.post("/")
-async def place_order(request: Request, conn=Depends(get_db), user=Depends(require_customer)):
+def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict = Depends(optional_json_body)):
     user_id          = user["user_id"]
     delivery_address = None
-    try:
-        body = await request.json()
-        if isinstance(body, dict):
-            addr = body.get("delivery_address")
-            if addr is not None and str(addr).strip():
-                delivery_address = str(addr).strip()[:500]  # enforce max length
-    except Exception:
-        pass
+    addr = body.get("delivery_address")
+    if addr is not None and str(addr).strip():
+        delivery_address = str(addr).strip()[:500]  # enforce max length
 
     try:
         cart = conn.execute(
@@ -130,7 +152,7 @@ async def place_order(request: Request, conn=Depends(get_db), user=Depends(requi
             return error_response("Failed to place order, please try again", 500)
         # ── End atomic transaction ─────────────────────────
 
-        await broadcast_update("new_order", {"order_id": order_id, "user_id": user_id})
+        notify("new_order", {"order_id": order_id}, user_id=user_id)
         return success_response(
             data={"order_id": order_id},
             message=f"Order placed successfully with order_id {order_id}",
@@ -143,7 +165,7 @@ async def place_order(request: Request, conn=Depends(get_db), user=Depends(requi
 
 # ── ORDER HISTORY (Customer) ──────────────────────────
 @router.get("/")
-async def order_history(request: Request, conn=Depends(get_db), user=Depends(require_customer)):
+def order_history(request: Request, conn=Depends(get_db), user=Depends(require_customer)):
     user_id = user["user_id"]
     params  = request.query_params
     status  = params.get("status")
@@ -174,26 +196,9 @@ async def order_history(request: Request, conn=Depends(get_db), user=Depends(req
             tuple(query_params + [limit, offset]),
         ).fetchall()
 
-        result = []
-        for order in orders:
-            items = conn.execute(
-                """
-                SELECT oi.product_id, p.name, oi.quantity, oi.price
-                FROM Order_Items oi
-                JOIN Products p ON oi.product_id = p.product_id
-                WHERE oi.order_id = ?
-                """,
-                (order["order_id"],),
-            ).fetchall()
-            result.append({
-                "order_id":        order["order_id"],
-                "total_amount":    order["total_amount"],
-                "order_status":    order["order_status"],
-                "payment_method":  order["payment_method"],
-                "order_date":      order["order_date"],
-                "delivery_address": order["delivery_address"],
-                "items": [dict(i) for i in items],
-            })
+        result = _attach_items(conn, orders, (
+            "order_id", "total_amount", "order_status", "payment_method", "order_date", "delivery_address",
+        ))
 
         return success_response(data={
             "orders": result, "total": total,
@@ -207,13 +212,9 @@ async def order_history(request: Request, conn=Depends(get_db), user=Depends(req
 
 # ── UPDATE ORDER STATUS (Admin) ───────────────────────
 @router.patch("/{order_id}")
-async def update_order_status(
-    order_id: int, request: Request, conn=Depends(get_db), user=Depends(require_admin)
+def update_order_status(
+    order_id: int, conn=Depends(get_db), user=Depends(require_admin), data: dict = Depends(json_body)
 ):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
 
     if not data or "order_status" not in data:
         return error_response("order_status is required", 400)
@@ -224,7 +225,7 @@ async def update_order_status(
 
     try:
         order = conn.execute(
-            "SELECT order_id, order_status FROM Orders WHERE order_id = ?", (order_id,)
+            "SELECT order_id, order_status, user_id, delivery_boy_id FROM Orders WHERE order_id = ?", (order_id,)
         ).fetchone()
         if not order:
             return error_response("Order not found", 404)
@@ -252,7 +253,8 @@ async def update_order_status(
         if status == "Cancelled":
             _restore_stock(conn, order_id)
         conn.commit()
-        await broadcast_update("order_status_changed", {"order_id": order_id, "new_status": status})
+        notify("order_status_changed", {"order_id": order_id, "new_status": status},
+               user_id=order["user_id"], delivery_boy_id=order["delivery_boy_id"])
         return success_response(message="Order status updated successfully")
 
     except Exception:
@@ -263,7 +265,7 @@ async def update_order_status(
 
 # ── GET ALL ORDERS (Admin) ────────────────────────────
 @router.get("/admin")
-async def get_all_orders(request: Request, conn=Depends(get_db), user=Depends(require_admin)):
+def get_all_orders(request: Request, conn=Depends(get_db), user=Depends(require_admin)):
     params = request.query_params
     status = params.get("status")
     search = params.get("search")
@@ -287,7 +289,7 @@ async def get_all_orders(request: Request, conn=Depends(get_db), user=Depends(re
             query_params.append(status)
 
         if search:
-            base_query += " AND (u.name LIKE ? OR o.order_id::text LIKE ?)"
+            base_query += " AND (u.name ILIKE ? OR o.order_id::text LIKE ?)"
             query_params.extend([f"%{search}%", f"%{search}%"])
 
         total       = conn.execute(f"SELECT COUNT(*) {base_query}", tuple(query_params)).fetchone()[0]
@@ -306,29 +308,10 @@ async def get_all_orders(request: Request, conn=Depends(get_db), user=Depends(re
             tuple(query_params + [limit, offset]),
         ).fetchall()
 
-        result = []
-        for order in orders:
-            items = conn.execute(
-                """
-                SELECT oi.product_id, p.name, oi.quantity, oi.price
-                FROM Order_Items oi
-                JOIN Products p ON oi.product_id = p.product_id
-                WHERE oi.order_id = ?
-                """,
-                (order["order_id"],),
-            ).fetchall()
-            result.append({
-                "order_id":          order["order_id"],
-                "user_name":         order["user_name"],
-                "total_amount":      order["total_amount"],
-                "order_status":      order["order_status"],
-                "payment_method":    order["payment_method"],
-                "order_date":        order["order_date"],
-                "delivery_boy_id":   order["delivery_boy_id"],
-                "delivery_boy_name": order["delivery_boy_name"],
-                "delivery_address":  order["delivery_address"],
-                "items": [dict(i) for i in items],
-            })
+        result = _attach_items(conn, orders, (
+            "order_id", "user_name", "total_amount", "order_status", "payment_method",
+            "order_date", "delivery_boy_id", "delivery_boy_name", "delivery_address",
+        ))
 
         return success_response(data={
             "orders": result, "total": total,
@@ -342,19 +325,15 @@ async def get_all_orders(request: Request, conn=Depends(get_db), user=Depends(re
 
 # ── ASSIGN DELIVERY BOY (Admin) ───────────────────────
 @router.patch("/{order_id}/assign")
-async def assign_delivery_boy(
-    order_id: int, request: Request, conn=Depends(get_db), admin=Depends(require_admin)
+def assign_delivery_boy(
+    order_id: int, conn=Depends(get_db), admin=Depends(require_admin), data: dict = Depends(json_body)
 ):
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
 
     delivery_boy_id = data.get("delivery_boy_id")
 
     try:
         order = conn.execute(
-            "SELECT order_id, order_status FROM Orders WHERE order_id = ?", (order_id,)
+            "SELECT order_id, order_status, user_id, delivery_boy_id FROM Orders WHERE order_id = ?", (order_id,)
         ).fetchone()
         if not order:
             return error_response("Order not found", 404)
@@ -374,10 +353,12 @@ async def assign_delivery_boy(
             (delivery_boy_id, order_id),
         )
         conn.commit()
-        await broadcast_update(
-            "delivery_boy_assigned",
-            {"order_id": order_id, "delivery_boy_id": delivery_boy_id},
-        )
+        event = {"order_id": order_id, "delivery_boy_id": delivery_boy_id}
+        notify("delivery_boy_assigned", event, user_id=order["user_id"], delivery_boy_id=delivery_boy_id)
+        previous = order["delivery_boy_id"]
+        if previous and previous != delivery_boy_id:
+            # let the previously assigned delivery boy drop it from his list
+            notify("delivery_boy_assigned", event, delivery_boy_id=previous)
         return success_response(message="Delivery boy assigned successfully")
 
     except Exception:
@@ -388,7 +369,7 @@ async def assign_delivery_boy(
 
 # ── GET SINGLE ORDER DETAIL ───────────────────────────
 @router.get("/{order_id}/detail")
-async def get_order_detail(order_id: int, conn=Depends(get_db), user=Depends(require_user)):
+def get_order_detail(order_id: int, conn=Depends(get_db), user=Depends(require_user)):
     try:
         order = conn.execute(
             """
@@ -435,11 +416,11 @@ async def get_order_detail(order_id: int, conn=Depends(get_db), user=Depends(req
 
 # ── CANCEL ORDER (Customer) ───────────────────────────
 @router.patch("/{order_id}/cancel")
-async def cancel_order(order_id: int, conn=Depends(get_db), user=Depends(require_customer)):
+def cancel_order(order_id: int, conn=Depends(get_db), user=Depends(require_customer)):
     user_id = user["user_id"]
     try:
         order = conn.execute(
-            "SELECT order_id, user_id, order_status FROM Orders WHERE order_id = ?", (order_id,)
+            "SELECT order_id, user_id, order_status, delivery_boy_id FROM Orders WHERE order_id = ?", (order_id,)
         ).fetchone()
 
         if not order:
@@ -463,7 +444,8 @@ async def cancel_order(order_id: int, conn=Depends(get_db), user=Depends(require
             return error_response("Order cannot be cancelled", 400)
         _restore_stock(conn, order_id)
         conn.commit()
-        await broadcast_update("order_status_changed", {"order_id": order_id, "new_status": "Cancelled"})
+        notify("order_status_changed", {"order_id": order_id, "new_status": "Cancelled"},
+               user_id=user_id, delivery_boy_id=order["delivery_boy_id"])
         return success_response(message="Order cancelled successfully")
 
     except Exception:
@@ -472,9 +454,34 @@ async def cancel_order(order_id: int, conn=Depends(get_db), user=Depends(require
         return error_response("Internal server error", 500)
 
 
+# ── DELIVERY BOY: SUMMARY COUNTS ─────────────────────
+@router.get("/delivery/summary")
+def delivery_boy_summary(conn=Depends(get_db), user=Depends(require_delivery_boy)):
+    try:
+        rows = conn.execute(
+            """
+            SELECT order_status, COUNT(*) AS n
+            FROM Orders WHERE delivery_boy_id = ?
+            GROUP BY order_status
+            """,
+            (user["user_id"],),
+        ).fetchall()
+        counts = {r["order_status"]: r["n"] for r in rows}
+        return success_response(data={
+            "total":     sum(counts.values()),
+            "pending":   counts.get("Pending", 0),
+            "shipped":   counts.get("Shipped", 0),
+            "delivered": counts.get("Delivered", 0),
+            "cancelled": counts.get("Cancelled", 0),
+        })
+    except Exception:
+        logger.exception("delivery_boy_summary failed for user_id: %s", user["user_id"])
+        return error_response("Internal server error", 500)
+
+
 # ── DELIVERY BOY: MY ASSIGNED ORDERS ─────────────────
 @router.get("/delivery/my-orders")
-async def delivery_boy_orders(
+def delivery_boy_orders(
     request: Request, conn=Depends(get_db), user=Depends(require_delivery_boy)
 ):
     delivery_boy_id = user["user_id"]
@@ -510,26 +517,9 @@ async def delivery_boy_orders(
             tuple(query_params + [limit, offset]),
         ).fetchall()
 
-        result = []
-        for order in orders:
-            items = conn.execute(
-                """
-                SELECT oi.product_id, p.name, oi.quantity, oi.price
-                FROM Order_Items oi
-                JOIN Products p ON oi.product_id = p.product_id
-                WHERE oi.order_id = ?
-                """,
-                (order["order_id"],),
-            ).fetchall()
-            result.append({
-                "order_id":        order["order_id"],
-                "customer_name":   order["customer_name"],
-                "total_amount":    order["total_amount"],
-                "order_status":    order["order_status"],
-                "order_date":      order["order_date"],
-                "delivery_address": order["delivery_address"],
-                "items": [dict(i) for i in items],
-            })
+        result = _attach_items(conn, orders, (
+            "order_id", "customer_name", "total_amount", "order_status", "order_date", "delivery_address",
+        ))
 
         return success_response(data={
             "orders": result, "total": total,
@@ -543,14 +533,10 @@ async def delivery_boy_orders(
 
 # ── DELIVERY BOY: UPDATE STATUS ───────────────────────
 @router.patch("/delivery/{order_id}/status")
-async def delivery_boy_update_status(
-    order_id: int, request: Request, conn=Depends(get_db), user=Depends(require_delivery_boy)
+def delivery_boy_update_status(
+    order_id: int, conn=Depends(get_db), user=Depends(require_delivery_boy), data: dict = Depends(json_body)
 ):
     delivery_boy_id = user["user_id"]
-    try:
-        data = await request.json()
-    except Exception:
-        return error_response("Invalid JSON body", 400)
 
     new_status = data.get("order_status")
     if not new_status:
@@ -560,7 +546,7 @@ async def delivery_boy_update_status(
 
     try:
         order = conn.execute(
-            "SELECT order_id, order_status, delivery_boy_id FROM Orders WHERE order_id = ?",
+            "SELECT order_id, order_status, delivery_boy_id, user_id FROM Orders WHERE order_id = ?",
             (order_id,),
         ).fetchone()
 
@@ -584,9 +570,8 @@ async def delivery_boy_update_status(
             "UPDATE Orders SET order_status = ? WHERE order_id = ?", (new_status, order_id)
         )
         conn.commit()
-        await broadcast_update(
-            "order_status_changed", {"order_id": order_id, "new_status": new_status}
-        )
+        notify("order_status_changed", {"order_id": order_id, "new_status": new_status},
+               user_id=order["user_id"], delivery_boy_id=delivery_boy_id)
         return success_response(message=f"Order marked as {new_status}")
 
     except Exception:
