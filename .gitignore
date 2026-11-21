@@ -107,3 +107,5 @@ frontend/playwright-report/
 .qwen/
 
 backend/app/utils/.env
+# Private notes with passwords - never push
+PROJECT_GUIDE_PRIVATE.txt
