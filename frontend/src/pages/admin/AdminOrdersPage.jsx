@@ -81,7 +81,7 @@ export default function AdminOrdersPage() {
       setUpdateModal(null)
       fetchOrders()
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     } finally {
       setUpdating(false)
     }
@@ -110,7 +110,7 @@ export default function AdminOrdersPage() {
       setAssignModal(null)
       fetchOrders()
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     } finally {
       setAssigning(false)
     }

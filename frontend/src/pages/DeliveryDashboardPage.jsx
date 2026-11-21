@@ -89,7 +89,7 @@ export default function DeliveryDashboardPage() {
       fetchOrders()
       fetchHistory()
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     } finally {
       setMarkingId(null)
     }

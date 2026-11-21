@@ -41,7 +41,7 @@ export default function AdminCategoriesPage() {
       setModalOpen(false)
       fetch()
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     } finally {
       setSubmitting(false)
     }
@@ -53,7 +53,7 @@ export default function AdminCategoriesPage() {
       toast.success(i18n.t('toast.categoryDeleted'))
       fetch()
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     }
   }
  

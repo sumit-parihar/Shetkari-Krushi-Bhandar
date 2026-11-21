@@ -55,7 +55,7 @@ export default function AdminUsersPage() {
       setEditUser(null)
       fetchUsers()
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     } finally {
       setSubmitting(false)
     }
@@ -67,7 +67,7 @@ export default function AdminUsersPage() {
       toast.success(i18n.t('toast.userDeleted'))
       fetchUsers()
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     }
   }
  

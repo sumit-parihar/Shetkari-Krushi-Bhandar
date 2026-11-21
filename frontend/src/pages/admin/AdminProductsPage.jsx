@@ -80,7 +80,7 @@ export default function AdminProductsPage() {
       setModalOpen(false)
       fetchProducts()
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     } finally {
       setSubmitting(false)
     }
@@ -92,7 +92,7 @@ export default function AdminProductsPage() {
       toast.success(i18n.t('toast.productDeleted'))
       fetchProducts()
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     }
   }
  

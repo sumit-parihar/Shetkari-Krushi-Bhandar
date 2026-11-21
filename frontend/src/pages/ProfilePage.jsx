@@ -54,7 +54,7 @@ export default function ProfilePage() {
       })
       toast.success(i18n.t('toast.profileUpdated'))
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     } finally {
       setSavingProfile(false)
     }
@@ -82,7 +82,7 @@ export default function ProfilePage() {
       toast.success(i18n.t('toast.passwordChanged'))
       setPwForm({ current_password: '', new_password: '', confirm_password: '' })
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     } finally {
       setSavingPw(false)
     }

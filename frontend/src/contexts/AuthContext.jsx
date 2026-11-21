@@ -27,7 +27,7 @@ export function AuthProvider({ children }) {
       toast.success(i18n.t('toast.welcomeBack', { name: userData.name }))
       return { success: true, role: userData.role }
     } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.error || i18n.t('toast.loginFailed')
+      const msg = err.response?.data?.error || i18n.t('toast.loginFailed')
       toast.error(msg)
       return { success: false, error: msg }
     } finally {
@@ -42,7 +42,7 @@ export function AuthProvider({ children }) {
       toast.success(i18n.t('toast.accountCreated'))
       return { success: true }
     } catch (err) {
-      const msg = err.response?.data?.message || i18n.t('toast.registrationFailed')
+      const msg = err.response?.data?.error || i18n.t('toast.registrationFailed')
       toast.error(msg)
       return { success: false, error: msg }
     } finally {

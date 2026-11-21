@@ -74,7 +74,7 @@ export default function CheckoutPage() {
       setDone(true)
       toast.success(i18n.t('toast.orderPlaced'))
     } catch (err) {
-      toast.error(err.response?.data?.message || i18n.t('errors.somethingWrong'))
+      toast.error(err.response?.data?.error || i18n.t('errors.somethingWrong'))
     } finally {
       setPlacing(false)
     }
