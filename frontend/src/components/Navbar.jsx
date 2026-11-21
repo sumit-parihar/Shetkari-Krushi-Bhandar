@@ -55,7 +55,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 group">
+          <Link to="/" className="flex items-center gap-2.5 group" aria-label="Shetkari Krushi Bhandar">
             <div className="w-9 h-9 bg-leaf-600 rounded-xl flex items-center justify-center shadow-leaf group-hover:bg-leaf-700 transition-colors">
               <Leaf className="w-5 h-5 text-white" />
             </div>
@@ -93,6 +93,7 @@ export default function Navbar() {
                 to="/cart"
                 className="relative p-2.5 rounded-xl hover:bg-earth-100 transition-colors group"
                 title={t('nav.cart')}
+                aria-label={t('nav.cart')}
               >
                 <ShoppingCart className="w-5 h-5 text-earth-600 group-hover:text-leaf-700 transition-colors" />
                 {itemCount > 0 && (
@@ -194,6 +195,8 @@ export default function Navbar() {
             <button
               className="md:hidden p-2 rounded-xl hover:bg-earth-100 transition-colors"
               onClick={() => setMobileOpen(p => !p)}
+              aria-label={t('a11y.toggleMenu')}
+              aria-expanded={mobileOpen}
             >
               {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>

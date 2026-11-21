@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { MapPin, CreditCard, CheckCircle, ShoppingBag } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { orderAPI } from '../services/api'
@@ -14,7 +14,6 @@ export default function CheckoutPage() {
   const { t } = useTranslation()
   const { cart, total, clearCartState } = useCart()
   const { user } = useAuth()
-  const navigate = useNavigate()
   const [address, setAddress] = useState(user?.address || '')
   const [placing, setPlacing] = useState(false)
   const [done, setDone] = useState(false)

@@ -167,7 +167,7 @@ export default function DeliveryDashboardPage() {
           </div>
  
           <div className="card overflow-x-auto">
-            <table className="w-full min-w-[600px]">
+            <table className="w-full md:min-w-[600px]">
               <thead>
                 <tr>{[
                   t('delivery.dashboard.orderId'),
@@ -176,8 +176,8 @@ export default function DeliveryDashboardPage() {
                   t('delivery.dashboard.status'),
                   t('delivery.dashboard.date'),
                   t('delivery.dashboard.action'),
-                ].map(h => (
-                  <th key={h} className="table-header text-left">{h}</th>
+                ].map((h, i) => (
+                  <th key={h} className={`table-header text-left ${[0, 4].includes(i) ? 'hidden md:table-cell' : ''}`}>{h}</th>
                 ))}</tr>
               </thead>
               <tbody>
@@ -189,11 +189,11 @@ export default function DeliveryDashboardPage() {
                     <Fragment key={o.order_id}>
                       <tr className="hover:bg-earth-50/50 transition-colors cursor-pointer"
                         onClick={() => setExpanded(expanded === o.order_id ? null : o.order_id)}>
-                        <td className="table-cell font-mono text-xs">#{o.order_id}</td>
-                        <td className="table-cell font-medium text-sm">{o.customer_name}</td>
+                        <td className="hidden md:table-cell table-cell font-mono text-xs">#{o.order_id}</td>
+                        <td className="table-cell font-medium text-sm">{o.customer_name}<span className="md:hidden block font-mono text-xs text-earth-400">#{o.order_id}</span></td>
                         <td className="table-cell font-semibold text-leaf-700">{formatCurrency(o.total_amount)}</td>
                         <td className="table-cell"><StatusBadge status={o.order_status} /></td>
-                        <td className="table-cell text-xs text-earth-500">{formatDateTime(o.order_date)}</td>
+                        <td className="hidden md:table-cell table-cell text-xs text-earth-500">{formatDateTime(o.order_date)}</td>
                         <td className="table-cell">
                           {o.order_status === 'Pending' && (
                             <button onClick={e => { e.stopPropagation(); markDelivered(o.order_id) }}
@@ -262,7 +262,7 @@ export default function DeliveryDashboardPage() {
               {t('delivery.dashboard.totalDelivered', { count: histTotal })}
             </span>
           </div>
-          <table className="w-full min-w-[560px]">
+          <table className="w-full md:min-w-[560px]">
             <thead>
               <tr>{[
                 t('delivery.dashboard.orderId'),
@@ -270,8 +270,8 @@ export default function DeliveryDashboardPage() {
                 t('delivery.dashboard.total'),
                 t('delivery.dashboard.deliveredOn'),
                 t('delivery.dashboard.address'),
-              ].map(h => (
-                <th key={h} className="table-header text-left">{h}</th>
+              ].map((h, i) => (
+                <th key={h} className={`table-header text-left ${[0, 4].includes(i) ? 'hidden md:table-cell' : ''}`}>{h}</th>
               ))}</tr>
             </thead>
             <tbody>
@@ -281,11 +281,11 @@ export default function DeliveryDashboardPage() {
                 ? <tr><td colSpan={5}><EmptyState title={t('delivery.dashboard.noDeliveries')} icon={CheckCircle} /></td></tr>
                 : histOrders.map(o => (
                   <tr key={o.order_id} className="hover:bg-earth-50/50 transition-colors">
-                    <td className="table-cell font-mono text-xs">#{o.order_id}</td>
-                    <td className="table-cell font-medium text-sm">{o.customer_name}</td>
+                    <td className="hidden md:table-cell table-cell font-mono text-xs">#{o.order_id}</td>
+                    <td className="table-cell font-medium text-sm">{o.customer_name}<span className="md:hidden block font-mono text-xs text-earth-400">#{o.order_id}</span></td>
                     <td className="table-cell font-semibold text-leaf-700">{formatCurrency(o.total_amount)}</td>
                     <td className="table-cell text-xs text-earth-500">{formatDateTime(o.order_date)}</td>
-                    <td className="table-cell text-xs text-earth-500 max-w-[180px] truncate">{o.delivery_address || '—'}</td>
+                    <td className="hidden md:table-cell table-cell text-xs text-earth-500 max-w-[180px] truncate">{o.delivery_address || '—'}</td>
                   </tr>
                 ))
               }

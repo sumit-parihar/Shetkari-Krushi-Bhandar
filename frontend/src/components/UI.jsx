@@ -1,4 +1,5 @@
 import { Loader2, AlertCircle, PackageSearch, ChevronLeft, ChevronRight } from 'lucide-react'
+import i18n from '../i18n'
 
 // ─── Spinner ─────────────────────────────────────────
 export function Spinner({ size = 'md', className = '' }) {
@@ -94,6 +95,7 @@ export function Pagination({ page, totalPages, onPage, total, limit }) {
         <button
           onClick={() => onPage(page - 1)}
           disabled={page === 1}
+          aria-label={i18n.t('a11y.previousPage')}
           className="p-2 rounded-lg hover:bg-earth-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -121,6 +123,7 @@ export function Pagination({ page, totalPages, onPage, total, limit }) {
         )}
         <button
           onClick={() => onPage(page + 1)}
+          aria-label={i18n.t('a11y.nextPage')}
           disabled={page === totalPages}
           className="p-2 rounded-lg hover:bg-earth-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
@@ -141,7 +144,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
       <div className={`relative w-full ${sizes[size]} card animate-scale-in`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-earth-100">
           <h2 className="font-display text-lg font-semibold text-bark">{title}</h2>
-          <button onClick={onClose} className="btn-ghost p-1.5 rounded-lg">
+          <button onClick={onClose} className="btn-ghost p-1.5 rounded-lg" aria-label={i18n.t('a11y.close')}>
             <span className="text-lg leading-none">×</span>
           </button>
         </div>

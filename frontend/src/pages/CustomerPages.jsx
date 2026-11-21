@@ -115,6 +115,8 @@ export function CustomerDashboardPage() {
   }, [])
  
   useEffect(() => { fetchStats() }, [fetchStats])
+
+  if (loading) return <PageLoader />
  
   const cards = [
     { title: t('customer.totalOrders'), value: stats?.total_orders ?? 0, icon: Package,     color: 'earth' },

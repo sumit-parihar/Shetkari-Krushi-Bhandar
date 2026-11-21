@@ -10,6 +10,9 @@ Usage (from the project root, backend venv active):
 """
 import os
 import sys
+# Print ✓ / ✅ even when output is redirected to a file or pipe on Windows
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from pathlib import Path
 
 import psycopg2

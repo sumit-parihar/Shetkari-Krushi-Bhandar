@@ -92,10 +92,10 @@ export default function AdminCategoriesPage() {
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <button onClick={() => openEdit(c)} className="p-1.5 rounded-lg hover:bg-earth-100 text-earth-400 hover:text-leaf-700 transition-colors">
+                  <button onClick={() => openEdit(c)} aria-label={t('a11y.edit')} className="p-1.5 rounded-lg hover:bg-earth-100 text-earth-400 hover:text-leaf-700 transition-colors">
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => setDeleteId(c.category_id)} className="p-1.5 rounded-lg hover:bg-red-50 text-earth-400 hover:text-red-600 transition-colors">
+                  <button onClick={() => setDeleteId(c.category_id)} aria-label={t('a11y.delete')} className="p-1.5 rounded-lg hover:bg-red-50 text-earth-400 hover:text-red-600 transition-colors">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>

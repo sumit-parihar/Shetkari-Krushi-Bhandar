@@ -8,8 +8,8 @@ from fastapi import APIRouter, Request, Depends
 from app.db.connection import get_db
 from app.dependencies.body import json_body
 from app.dependencies.auth import require_admin, require_user
-from app.utils.response import success_response, error_response
-from app.utils.auth_utils import hash_password, verify_password, generate_jwt
+from app.utils.response import success_response, error_response, APIError
+from app.utils.auth_utils import hash_password, verify_password, create_access_token
 from app.utils.roles import normalize_role
 from app.utils.validators import validate_pagination
 from app.utils.rate_limiter import limiter
@@ -109,8 +109,9 @@ def register(request: Request, conn=Depends(get_db), data: dict = Depends(json_b
                 return error_response("Email already registered", 400)
             # Unverified user exists — allow re-sending OTP (handled below)
 
-        # Delete any previous pending OTP for this email
+        # Delete any previous pending OTP for this email, and abandoned ones for anyone
         conn.execute("DELETE FROM OTP_Verifications WHERE email = %s", (email,))
+        conn.execute("DELETE FROM OTP_Verifications WHERE expires_at < NOW() - INTERVAL '1 day'")
 
         otp        = _generate_otp()
         expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
@@ -139,6 +140,10 @@ def register(request: Request, conn=Depends(get_db), data: dict = Depends(json_b
             data={"email": email},
             message=f"Verification code sent to {email}. Please check your inbox.",
         )
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("Registration step 1 failed for email: %s", email)
@@ -221,6 +226,10 @@ def verify_otp(request: Request, conn=Depends(get_db), data: dict = Depends(json
 
         return success_response(message="Email verified successfully! You can now log in.")
 
+    except APIError:
+
+        raise
+
     except Exception:
         logger.exception("OTP verification failed for email: %s", email)
         conn.rollback()
@@ -260,6 +269,10 @@ def resend_otp(request: Request, conn=Depends(get_db), data: dict = Depends(json
             return error_response("Failed to send email. Please try again.", 500)
 
         return success_response(message="New verification code sent to your email.")
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("Resend OTP failed for email: %s", email)
@@ -305,7 +318,7 @@ def login(request: Request, conn=Depends(get_db), data: dict = Depends(json_body
             )
 
         role  = normalize_role(user["role"])
-        token = generate_jwt(user["user_id"], role)
+        token = create_access_token(user["user_id"], role)
 
         return success_response(
             data={
@@ -321,6 +334,10 @@ def login(request: Request, conn=Depends(get_db), data: dict = Depends(json_body
             },
             message="Login successful",
         )
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("Login failed for email: %s", email)
@@ -367,6 +384,10 @@ def update_own_profile(conn=Depends(get_db), user=Depends(require_user), data: d
         conn.commit()
         return success_response(message="Profile updated successfully")
 
+    except APIError:
+
+        raise
+
     except Exception:
         logger.exception("Profile update failed for user_id: %s", user_id)
         conn.rollback()
@@ -400,6 +421,10 @@ def change_password(conn=Depends(get_db), user=Depends(require_user), data: dict
         )
         conn.commit()
         return success_response(message="Password changed successfully")
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("Password change failed for user_id: %s", user.get("user_id"))
@@ -450,6 +475,10 @@ def list_users(request: Request, conn=Depends(get_db), admin=Depends(require_adm
             data={"users": users_out, "page": page, "page_size": page_size, "total": total}
         )
 
+    except APIError:
+
+        raise
+
     except Exception:
         logger.exception("List users failed")
         return error_response("Internal server error", 500)
@@ -480,6 +509,8 @@ def admin_delete_user(user_id: int, conn=Depends(get_db), admin=Depends(require_
         )
         conn.commit()
         return success_response(message="User deleted successfully")
+    except APIError:
+        raise
     except Exception:
         logger.exception("Deactivate user failed for user_id: %s", user_id)
         conn.rollback()
@@ -506,6 +537,9 @@ def admin_update_user(
         role = normalize_role(data.get("role", row["role"]))
         if role not in ("customer", "admin", "delivery_boy"):
             return error_response("Invalid role", 400)
+        if user_id == admin["user_id"] and role != "admin":
+            # Prevents the shop from being left without any admin
+            return error_response("You cannot remove your own admin role", 400)
 
         name    = str(data.get("name",  row["name"])).strip()  or row["name"]
         email   = (str(data.get("email", row["email"])).strip() or row["email"]).lower()
@@ -528,6 +562,10 @@ def admin_update_user(
         conn.commit()
         return success_response(message="User updated successfully")
 
+    except APIError:
+
+        raise
+
     except Exception:
         logger.exception("Update user failed for user_id: %s", user_id)
         conn.rollback()
@@ -542,6 +580,8 @@ def list_delivery_boys(conn=Depends(get_db), admin=Depends(require_admin)):
             "SELECT user_id, name, email, phone FROM Users WHERE role = 'delivery_boy' AND is_active ORDER BY name"
         ).fetchall()
         return success_response(data={"delivery_boys": [dict(r) for r in rows]})
+    except APIError:
+        raise
     except Exception:
         logger.exception("List delivery boys failed")
         return error_response("Internal server error", 500)

@@ -89,7 +89,7 @@ export default function AdminUsersPage() {
       </div>
  
       <div className="card overflow-x-auto">
-        <table className="w-full min-w-[640px]">
+        <table className="w-full md:min-w-[640px]">
           <thead>
             <tr>
               {[
@@ -99,7 +99,7 @@ export default function AdminUsersPage() {
                 t('admin.users.role'),
                 t('admin.users.joined'),
                 t('admin.users.actions'),
-              ].map(h => <th key={h} className="table-header text-left">{h}</th>)}
+              ].map((h, i) => <th key={h} className={`table-header text-left ${[0, 2, 4].includes(i) ? 'hidden md:table-cell' : ''}`}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -109,13 +109,16 @@ export default function AdminUsersPage() {
               ? <tr><td colSpan={6}><EmptyState title={t('admin.users.noUsers')} icon={Users} /></td></tr>
               : users.map(u => (
                 <tr key={u.user_id} className="hover:bg-earth-50/50 transition-colors">
-                  <td className="table-cell font-mono text-xs text-earth-400">#{u.user_id}</td>
+                  <td className="hidden md:table-cell table-cell font-mono text-xs text-earth-400">#{u.user_id}</td>
                   <td className="table-cell">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-full bg-leaf-100 flex items-center justify-center shrink-0">
                         <span className="text-leaf-700 font-semibold text-xs">{u.name?.charAt(0).toUpperCase()}</span>
                       </div>
-                      <span className="font-medium text-sm text-bark">{u.name}</span>
+                      <div className="min-w-0">
+                        <span className="font-medium text-sm text-bark">{u.name}</span>
+                        <span className="md:hidden block text-xs text-earth-500 break-all">{u.email}</span>
+                      </div>
                       {u.user_id === currentUser?.user_id && (
                         <span className="text-[10px] bg-earth-100 text-earth-600 px-1.5 py-0.5 rounded font-medium">
                           {t('admin.users.you')}
@@ -123,7 +126,7 @@ export default function AdminUsersPage() {
                       )}
                     </div>
                   </td>
-                  <td className="table-cell text-sm text-earth-600">{u.email}</td>
+                  <td className="hidden md:table-cell table-cell text-sm text-earth-600">{u.email}</td>
                   <td className="table-cell">
                     <span className={`badge text-xs ${
                       u.role === 'admin'        ? 'bg-soil-100 text-soil-700' :
@@ -135,15 +138,15 @@ export default function AdminUsersPage() {
                                                     t('admin.users.customer')}
                     </span>
                   </td>
-                  <td className="table-cell text-xs text-earth-500">{formatDate(u.created_at)}</td>
+                  <td className="hidden md:table-cell table-cell text-xs text-earth-500">{formatDate(u.created_at)}</td>
                   <td className="table-cell">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(u)}
+                      <button onClick={() => openEdit(u)} aria-label={t('a11y.edit')}
                         className="p-1.5 rounded-lg hover:bg-earth-100 text-earth-400 hover:text-leaf-700 transition-colors">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       {u.user_id !== currentUser?.user_id && (
-                        <button onClick={() => setDeleteId(u.user_id)}
+                        <button onClick={() => setDeleteId(u.user_id)} aria-label={t('a11y.delete')}
                           className="p-1.5 rounded-lg hover:bg-red-50 text-earth-400 hover:text-red-600 transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

@@ -4,11 +4,30 @@ import logging
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.db.connection import get_db
-from app.utils.response import success_response, error_response
+from app.utils.response import success_response, error_response, APIError
 from app.dependencies.auth import require_customer, require_admin
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _status_counts(conn, where: str, params: tuple, with_revenue: bool = False):
+    """Order counts per status (and optionally revenue) in a single query."""
+    rows = conn.execute(
+        f"""
+        SELECT order_status, COUNT(*) AS n,
+               COALESCE(SUM(total_amount) FILTER (WHERE order_status != 'Cancelled'), 0) AS revenue
+        FROM Orders {where}
+        GROUP BY order_status
+        """,
+        params,
+    ).fetchall()
+    counts = {s: 0 for s in ("pending", "shipped", "delivered", "cancelled")}
+    revenue = 0
+    for r in rows:
+        counts[r["order_status"].lower()] = r["n"]
+        revenue += r["revenue"]
+    return (counts, revenue) if with_revenue else counts
 
 
 def _csv_safe(value):
@@ -26,17 +45,8 @@ def _csv_safe(value):
 def customer_dashboard(conn=Depends(get_db), user=Depends(require_customer)):
     user_id = user["user_id"]
     try:
-        total_orders = conn.execute(
-            "SELECT COUNT(*) as count FROM Orders WHERE user_id = %s", (user_id,)
-        ).fetchone()["count"]
-
-        statuses = ("Pending", "Shipped", "Delivered", "Cancelled")
-        counts   = {}
-        for s in statuses:
-            counts[s.lower()] = conn.execute(
-                "SELECT COUNT(*) as count FROM Orders WHERE user_id = %s AND order_status = %s",
-                (user_id, s),
-            ).fetchone()["count"]
+        counts = _status_counts(conn, "WHERE user_id = %s", (user_id,))
+        total_orders = sum(counts.values())
 
         recent_orders = conn.execute(
             """
@@ -57,6 +67,8 @@ def customer_dashboard(conn=Depends(get_db), user=Depends(require_customer)):
             "cancelled":     counts["cancelled"],
             "recent_orders": [dict(o) for o in recent_orders],
         })
+    except APIError:
+        raise
     except Exception:
         logger.exception("customer_dashboard failed for user_id: %s", user_id)
         return error_response("Internal server error", 500)
@@ -66,20 +78,8 @@ def customer_dashboard(conn=Depends(get_db), user=Depends(require_customer)):
 @router.get("/admin")
 def admin_dashboard(conn=Depends(get_db), admin=Depends(require_admin)):
     try:
-        total_orders = conn.execute(
-            "SELECT COUNT(*) as count FROM Orders"
-        ).fetchone()["count"]
-
-        revenue = conn.execute(
-            "SELECT COALESCE(SUM(total_amount), 0) as total FROM Orders WHERE order_status != 'Cancelled'"
-        ).fetchone()["total"] or 0
-
-        statuses = ("Pending", "Shipped", "Delivered", "Cancelled")
-        counts   = {}
-        for s in statuses:
-            counts[s.lower()] = conn.execute(
-                "SELECT COUNT(*) as count FROM Orders WHERE order_status = %s", (s,)
-            ).fetchone()["count"]
+        counts, revenue = _status_counts(conn, "", (), with_revenue=True)
+        total_orders = sum(counts.values())
 
         return success_response(data={
             "total_orders": total_orders,
@@ -89,6 +89,8 @@ def admin_dashboard(conn=Depends(get_db), admin=Depends(require_admin)):
             "delivered":    counts["delivered"],
             "cancelled":    counts["cancelled"],
         })
+    except APIError:
+        raise
     except Exception:
         logger.exception("admin_dashboard failed")
         return error_response("Internal server error", 500)
@@ -166,6 +168,8 @@ def admin_report(conn=Depends(get_db), admin=Depends(require_admin)):
             "top_categories": [dict(r) for r in top_categories],
             "delivery_perf":  [dict(r) for r in delivery_perf],
         })
+    except APIError:
+        raise
     except Exception:
         logger.exception("admin_report failed")
         return error_response("Internal server error", 500)
@@ -211,6 +215,8 @@ def admin_export(conn=Depends(get_db), admin=Depends(require_admin)):
             media_type="text/csv",
             headers={"Content-Disposition": "attachment; filename=orders_export.csv"},
         )
+    except APIError:
+        raise
     except Exception:
         logger.exception("admin_export failed")
         return error_response("Internal server error", 500)

@@ -154,7 +154,7 @@ export default function AdminOrdersPage() {
       </div>
  
       <div className="card overflow-x-auto">
-        <table className="w-full min-w-[800px]">
+        <table className="w-full md:min-w-[800px]">
           <thead>
             <tr>
               {[
@@ -165,7 +165,7 @@ export default function AdminOrdersPage() {
                 t('admin.orders.deliveryBoy'),
                 t('admin.orders.date'),
                 t('admin.orders.actions'),
-              ].map(h => <th key={h} className="table-header text-left">{h}</th>)}
+              ].map((h, i) => <th key={h} className={`table-header text-left ${[0, 2, 4, 5].includes(i) ? 'hidden md:table-cell' : ''}`}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -177,19 +177,19 @@ export default function AdminOrdersPage() {
                 <Fragment key={o.order_id}>
                   <tr className="hover:bg-earth-50/50 transition-colors cursor-pointer"
                     onClick={() => setExpanded(expanded === o.order_id ? null : o.order_id)}>
-                    <td className="table-cell font-mono text-xs">#{o.order_id}</td>
-                    <td className="table-cell font-medium text-sm">{o.user_name}</td>
-                    <td className="table-cell font-semibold text-leaf-700">{formatCurrency(o.total_amount)}</td>
+                    <td className="hidden md:table-cell table-cell font-mono text-xs">#{o.order_id}</td>
+                    <td className="table-cell font-medium text-sm">{o.user_name}<span className="md:hidden block text-xs font-normal text-earth-500">#{o.order_id} · <span className="font-semibold text-leaf-700">{formatCurrency(o.total_amount)}</span></span></td>
+                    <td className="hidden md:table-cell table-cell font-semibold text-leaf-700">{formatCurrency(o.total_amount)}</td>
                     <td className="table-cell"><StatusBadge status={o.order_status} /></td>
-                    <td className="table-cell text-xs">
+                    <td className="hidden md:table-cell table-cell text-xs">
                       {o.delivery_boy_name
                         ? <span className="flex items-center gap-1 text-leaf-700"><Truck className="w-3 h-3" />{o.delivery_boy_name}</span>
                         : <span className="text-earth-400 italic">{t('admin.orders.unassigned')}</span>
                       }
                     </td>
-                    <td className="table-cell text-xs text-earth-500">{formatDateTime(o.order_date)}</td>
+                    <td className="hidden md:table-cell table-cell text-xs text-earth-500">{formatDateTime(o.order_date)}</td>
                     <td className="table-cell">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col items-start md:flex-row md:items-center gap-1.5 md:gap-2">
                         {VALID_TRANSITIONS[o.order_status]?.length > 0 && (
                           <button onClick={e => { e.stopPropagation(); openUpdate(o) }}
                             className="text-xs border border-earth-200 px-2.5 py-1 rounded-lg hover:bg-earth-100 text-earth-600 hover:text-leaf-700 transition-colors flex items-center gap-1">
@@ -210,6 +210,9 @@ export default function AdminOrdersPage() {
                   {expanded === o.order_id && (
                     <tr className="bg-earth-50/70">
                       <td colSpan={7} className="px-5 py-3">
+                        <p className="md:hidden text-xs text-earth-600 mb-2">
+                          {formatDateTime(o.order_date)} · {t('admin.orders.deliveryBoy')}: {o.delivery_boy_name || t('admin.orders.unassigned')}
+                        </p>
                         <p className="text-xs font-semibold text-earth-500 mb-2 uppercase tracking-wide">{t('admin.orders.orderItems')}</p>
                         <div className="flex flex-wrap gap-x-6 gap-y-1">
                           {o.items.map((item, i) => (

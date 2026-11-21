@@ -3,11 +3,11 @@ import { Trash2, ShoppingBag, ArrowRight, Minus, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useCart } from '../contexts/CartContext'
 import { formatCurrency } from '../utils/helpers'
-import { EmptyState, Spinner } from '../components/UI'
+import { EmptyState } from '../components/UI'
  
 export default function CartPage() {
   const { t } = useTranslation()
-  const { cart, loading, updateQuantity, removeFromCart, total } = useCart()
+  const { cart, updateQuantity, removeFromCart, total } = useCart()
   const navigate = useNavigate()
  
   if (cart.items.length === 0) {

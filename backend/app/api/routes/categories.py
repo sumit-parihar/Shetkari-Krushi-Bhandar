@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, Depends
 from app.db.connection import get_db
 from app.dependencies.body import json_body
 from app.dependencies.auth import require_admin
-from app.utils.response import success_response, error_response
+from app.utils.response import success_response, error_response, APIError
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -20,6 +20,8 @@ def list_categories(conn=Depends(get_db)):
             "SELECT category_id, category_name, description FROM Categories ORDER BY category_name"
         ).fetchall()
         return success_response(data=[dict(r) for r in rows])
+    except APIError:
+        raise
     except Exception:
         logger.exception("list_categories failed")
         return error_response("Internal server error", 500)
@@ -30,12 +32,14 @@ def list_categories(conn=Depends(get_db)):
 def get_category(category_id: int, conn=Depends(get_db)):
     try:
         row = conn.execute(
-            "SELECT category_id, category_name, description FROM Categories WHERE category_id = ?",
+            "SELECT category_id, category_name, description FROM Categories WHERE category_id = %s",
             (category_id,),
         ).fetchone()
         if not row:
             return error_response("Category not found", 404)
         return success_response(data=dict(row))
+    except APIError:
+        raise
     except Exception:
         logger.exception("get_category failed for category_id: %s", category_id)
         return error_response("Internal server error", 500)
@@ -56,12 +60,18 @@ def add_category(conn=Depends(get_db), admin=Depends(require_admin), data: dict 
         return error_response(f"description must be {MAX_DESCRIPTION} characters or fewer", 400)
 
     try:
+        if conn.execute(
+            "SELECT 1 FROM Categories WHERE LOWER(category_name) = LOWER(%s)", (name,)
+        ).fetchone():
+            return error_response("A category with this name already exists", 409)
         conn.execute(
-            "INSERT INTO Categories (category_name, description) VALUES (?, ?)",
+            "INSERT INTO Categories (category_name, description) VALUES (%s, %s)",
             (name, description),
         )
         conn.commit()
         return success_response(message="Category added successfully")
+    except APIError:
+        raise
     except Exception:
         logger.exception("add_category failed for name: %s", name)
         conn.rollback()
@@ -79,7 +89,7 @@ def update_category(
 
     try:
         row = conn.execute(
-            "SELECT category_id, category_name, description FROM Categories WHERE category_id = ?",
+            "SELECT category_id, category_name, description FROM Categories WHERE category_id = %s",
             (category_id,),
         ).fetchone()
         if not row:
@@ -95,12 +105,20 @@ def update_category(
         if description and len(description) > MAX_DESCRIPTION:
             return error_response(f"description must be {MAX_DESCRIPTION} characters or fewer", 400)
 
+        if conn.execute(
+            "SELECT 1 FROM Categories WHERE LOWER(category_name) = LOWER(%s) AND category_id != %s",
+            (name, category_id),
+        ).fetchone():
+            return error_response("A category with this name already exists", 409)
+
         conn.execute(
-            "UPDATE Categories SET category_name = ?, description = ? WHERE category_id = ?",
+            "UPDATE Categories SET category_name = %s, description = %s WHERE category_id = %s",
             (name, description, category_id),
         )
         conn.commit()
         return success_response(message="Category updated successfully")
+    except APIError:
+        raise
     except Exception:
         logger.exception("update_category failed for category_id: %s", category_id)
         conn.rollback()
@@ -112,13 +130,13 @@ def update_category(
 def delete_category(category_id: int, conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         if not conn.execute(
-            "SELECT 1 FROM Categories WHERE category_id = ?", (category_id,)
+            "SELECT 1 FROM Categories WHERE category_id = %s", (category_id,)
         ).fetchone():
             return error_response("Category not found", 404)
 
         # Check if any products are using this category
         product_count = conn.execute(
-            "SELECT COUNT(*) as c FROM Products WHERE category_id = ? AND is_active", (category_id,)
+            "SELECT COUNT(*) as c FROM Products WHERE category_id = %s AND is_active", (category_id,)
         ).fetchone()["c"]
         if product_count > 0:
             return error_response(
@@ -127,9 +145,13 @@ def delete_category(category_id: int, conn=Depends(get_db), admin=Depends(requir
                 400,
             )
 
-        conn.execute("DELETE FROM Categories WHERE category_id = ?", (category_id,))
+        conn.execute("DELETE FROM Categories WHERE category_id = %s", (category_id,))
         conn.commit()
         return success_response(message="Category deleted successfully")
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("delete_category failed for category_id: %s", category_id)

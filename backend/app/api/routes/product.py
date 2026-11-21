@@ -3,7 +3,7 @@ import math
 from fastapi import APIRouter, Request, Depends
 from app.db.connection import get_db
 from app.dependencies.body import json_body
-from app.utils.response import success_response, error_response
+from app.utils.response import success_response, error_response, APIError
 from app.utils.validators import validate_pagination
 from app.dependencies.auth import require_admin
 
@@ -21,7 +21,7 @@ def _validate_product_fields(data: dict, require_all: bool = True) -> str | None
     description = str(data.get("description", "") or "")
     image_url   = str(data.get("image_url",   "") or "")
 
-    if require_all and not name:
+    if (require_all or "name" in data) and not name:
         return "name is required"
     if name and len(name) > MAX_NAME:
         return f"name must be {MAX_NAME} characters or fewer"
@@ -79,7 +79,7 @@ def get_products(request: Request, conn=Depends(get_db)):
             LEFT JOIN Categories c ON p.category_id = c.category_id
             WHERE p.is_active
             ORDER BY p.created_at DESC
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
             """,
             (page_size, offset),
         ).fetchall()
@@ -90,6 +90,8 @@ def get_products(request: Request, conn=Depends(get_db)):
             "page_size": page_size,
             "total":     total,
         })
+    except APIError:
+        raise
     except Exception:
         logger.exception("get_products failed")
         return error_response("Internal server error", 500)
@@ -124,16 +126,16 @@ def search_products(request: Request, conn=Depends(get_db)):
         query_params = []
 
         if keyword:
-            where += " AND p.name ILIKE ?"
+            where += " AND p.name ILIKE %s"
             query_params.append(f"%{keyword}%")
         if category_id:
-            where += " AND p.category_id = ?"
+            where += " AND p.category_id = %s"
             query_params.append(category_id)
         if min_price is not None:
-            where += " AND p.price >= ?"
+            where += " AND p.price >= %s"
             query_params.append(min_price)
         if max_price is not None:
-            where += " AND p.price <= ?"
+            where += " AND p.price <= %s"
             query_params.append(max_price)
         if low_stock and low_stock.lower() == "true":
             where += " AND p.stock_quantity > 0 AND p.stock_quantity < 10"
@@ -160,7 +162,7 @@ def search_products(request: Request, conn=Depends(get_db)):
             LEFT JOIN Categories c ON p.category_id = c.category_id
             {where}
             {order}
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
             """,
             query_params + [page_size, (page - 1) * page_size],
         ).fetchall()
@@ -171,6 +173,10 @@ def search_products(request: Request, conn=Depends(get_db)):
             "page_size": page_size,
             "total":     total,
         })
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("search_products failed")
@@ -193,7 +199,7 @@ def add_product(conn=Depends(get_db), admin=Depends(require_admin), data: dict =
             cat_id = int(data["category_id"])
         except (TypeError, ValueError):
             return error_response("category_id must be integer", 400)
-        if not conn.execute("SELECT 1 FROM Categories WHERE category_id = ?", (cat_id,)).fetchone():
+        if not conn.execute("SELECT 1 FROM Categories WHERE category_id = %s", (cat_id,)).fetchone():
             return error_response("Invalid category_id", 400)
         data["category_id"] = cat_id
 
@@ -201,7 +207,7 @@ def add_product(conn=Depends(get_db), admin=Depends(require_admin), data: dict =
         conn.execute(
             """
             INSERT INTO Products (name, description, price, stock_quantity, category_id, image_url)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
             (
                 str(data["name"]).strip(),
@@ -214,6 +220,8 @@ def add_product(conn=Depends(get_db), admin=Depends(require_admin), data: dict =
         )
         conn.commit()
         return success_response(message="Product added successfully")
+    except APIError:
+        raise
     except Exception:
         logger.exception("add_product failed")
         conn.rollback()
@@ -235,7 +243,7 @@ def update_product(
 
     try:
         product = conn.execute(
-            "SELECT product_id, name, description, price, stock_quantity, category_id, image_url FROM Products WHERE product_id = ? AND is_active",
+            "SELECT product_id, name, description, price, stock_quantity, category_id, image_url FROM Products WHERE product_id = %s AND is_active",
             (product_id,),
         ).fetchone()
         if not product:
@@ -247,14 +255,14 @@ def update_product(
                 category_id = int(category_id)
             except (TypeError, ValueError):
                 return error_response("category_id must be integer", 400)
-            if not conn.execute("SELECT 1 FROM Categories WHERE category_id = ?", (category_id,)).fetchone():
+            if not conn.execute("SELECT 1 FROM Categories WHERE category_id = %s", (category_id,)).fetchone():
                 return error_response("Invalid category_id", 400)
 
         conn.execute(
             """
             UPDATE Products
-            SET name=?, description=?, price=?, stock_quantity=?, category_id=?, image_url=?
-            WHERE product_id=?
+            SET name=%s, description=%s, price=%s, stock_quantity=%s, category_id=%s, image_url=%s
+            WHERE product_id=%s
             """,
             (
                 str(data.get("name", product["name"])).strip(),
@@ -268,6 +276,8 @@ def update_product(
         )
         conn.commit()
         return success_response(message="Product updated successfully")
+    except APIError:
+        raise
     except Exception:
         logger.exception("update_product failed for product_id: %s", product_id)
         conn.rollback()
@@ -279,15 +289,17 @@ def update_product(
 def delete_product(product_id: int, conn=Depends(get_db), admin=Depends(require_admin)):
     try:
         if not conn.execute(
-            "SELECT 1 FROM Products WHERE product_id = ? AND is_active", (product_id,)
+            "SELECT 1 FROM Products WHERE product_id = %s AND is_active", (product_id,)
         ).fetchone():
             return error_response("Product not found", 404)
         # Deactivate instead of deleting: it leaves the shop and every cart,
         # but past orders and sales reports keep showing it.
-        conn.execute("UPDATE Products SET is_active = FALSE WHERE product_id = ?", (product_id,))
-        conn.execute("DELETE FROM Cart_Items WHERE product_id = ?", (product_id,))
+        conn.execute("UPDATE Products SET is_active = FALSE WHERE product_id = %s", (product_id,))
+        conn.execute("DELETE FROM Cart_Items WHERE product_id = %s", (product_id,))
         conn.commit()
         return success_response(message="Product deleted successfully")
+    except APIError:
+        raise
     except Exception:
         logger.exception("delete_product failed for product_id: %s", product_id)
         conn.rollback()
@@ -304,13 +316,15 @@ def get_product_by_id(product_id: int, conn=Depends(get_db)):
                    p.image_url, c.category_name
             FROM Products p
             LEFT JOIN Categories c ON p.category_id = c.category_id
-            WHERE p.product_id = ? AND p.is_active
+            WHERE p.product_id = %s AND p.is_active
             """,
             (product_id,),
         ).fetchone()
         if not product:
             return error_response("Product not found", 404)
         return success_response(dict(product))
+    except APIError:
+        raise
     except Exception:
         logger.exception("get_product_by_id failed for product_id: %s", product_id)
         return error_response("Internal server error", 500)

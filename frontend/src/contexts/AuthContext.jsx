@@ -36,21 +36,6 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const register = useCallback(async (name, email, password, phone, address) => {
-    setLoading(true)
-    try {
-      await authAPI.register({ name, email, password, phone, address })
-      toast.success(i18n.t('toast.accountCreated'))
-      return { success: true }
-    } catch (err) {
-      const msg = getErrorMessage(err, i18n.t('toast.registrationFailed'))
-      toast.error(msg)
-      return { success: false, error: msg }
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
   const logout = useCallback(() => {
     storage.removeItem('skb_token')
     storage.removeItem('skb_user')
@@ -104,7 +89,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, login, register, logout, loading, updateUser,
+      user, login, logout, loading, updateUser,
       isAdmin, isCustomer, isDeliveryBoy, isLoggedIn,
     }}>
       {children}

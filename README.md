@@ -100,7 +100,7 @@ npm run dev
 | URL | What |
 |-----|------|
 | http://localhost:3000 | Website |
-| http://localhost:8000/api/docs | Interactive API docs (Swagger) |
+| http://localhost:8000/api/docs | Interactive API docs (Swagger) — only with `ENV=dev`, hidden in production |
 
 On Git Bash / Linux / macOS you can instead run `./start-dev.sh` from the project root.
 
@@ -118,7 +118,8 @@ On Git Bash / Linux / macOS you can instead run `./start-dev.sh` from the projec
 | `BREVO_API_KEY` | `xkeysib-...` | Brevo API key (Transactional email permission) |
 | `SENDER_EMAIL` | `you@gmail.com` | Verified sender in Brevo |
 | `SENDER_NAME` | `Shetkari Krushi Bhandar` | Name shown in the inbox |
-| `ENV` | `dev` | **Local only.** Allows dev fallbacks; leave unset in production |
+| `ENV` | `dev` | **Local only.** Enables dev fallbacks, localhost CORS and the API docs; leave unset in production |
+| `DB_POOL_MAX` | `10` | Optional. Max database connections the backend keeps open (default 10) |
 | `PYTHON_VERSION` | `3.10.x` | **Render only.** Pins the Python version |
 
 ### Frontend — `frontend/.env` locally, **Environment Variables** on Vercel
@@ -173,7 +174,7 @@ After that, the admin can change any user's role (e.g. to `delivery_boy`) from *
 
 ## API Overview
 
-All endpoints are under `/api/v1`. Full, interactive docs: `/api/docs`.
+All endpoints are under `/api/v1`. Full, interactive docs: `/api/docs` (local dev only). Every error response has the same shape: `{"success": false, "error": "…"}`.
 
 | Area | Endpoints |
 |------|-----------|

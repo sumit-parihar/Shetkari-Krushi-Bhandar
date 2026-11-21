@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AuthProvider } from './contexts/AuthContext'
@@ -5,6 +6,7 @@ import { CartProvider } from './contexts/CartContext'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import { RequireCustomer, RequireAdmin, RequireDeliveryBoy, RedirectIfLoggedIn, RequireAuth } from './components/ProtectedRoutes'
+import { PageLoader } from './components/UI'
  
 // Public pages
 import HomePage from './pages/HomePage'
@@ -21,14 +23,14 @@ import ProfilePage from './pages/ProfilePage'
 // Delivery boy pages
 import DeliveryDashboardPage from './pages/DeliveryDashboardPage'
  
-// Admin pages
-import AdminLayout from './pages/admin/AdminLayout'
-import AdminDashboardPage from './pages/admin/AdminDashboardPage'
-import AdminProductsPage from './pages/admin/AdminProductsPage'
-import AdminCategoriesPage from './pages/admin/AdminCategoriesPage'
-import AdminOrdersPage from './pages/admin/AdminOrdersPage'
-import AdminUsersPage from './pages/admin/AdminUsersPage'
-import AdminReportsPage from './pages/admin/AdminReportsPage'
+// Admin pages are loaded only when an admin opens them (keeps charts out of the main bundle)
+const AdminLayout         = lazy(() => import('./pages/admin/AdminLayout'))
+const AdminDashboardPage  = lazy(() => import('./pages/admin/AdminDashboardPage'))
+const AdminProductsPage   = lazy(() => import('./pages/admin/AdminProductsPage'))
+const AdminCategoriesPage = lazy(() => import('./pages/admin/AdminCategoriesPage'))
+const AdminOrdersPage     = lazy(() => import('./pages/admin/AdminOrdersPage'))
+const AdminUsersPage      = lazy(() => import('./pages/admin/AdminUsersPage'))
+const AdminReportsPage    = lazy(() => import('./pages/admin/AdminReportsPage'))
  
 function NotFound() {
   const { t } = useTranslation()
@@ -58,6 +60,7 @@ export default function App() {
   return (
     <AuthProvider>
       <CartProvider>
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<AppShell><HomePage /></AppShell>} />
@@ -128,6 +131,7 @@ export default function App() {
  
           <Route path="*" element={<AppShell><NotFound /></AppShell>} />
         </Routes>
+        </Suspense>
       </CartProvider>
     </AuthProvider>
   )

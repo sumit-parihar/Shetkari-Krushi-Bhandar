@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId, Children, isValidElement, cloneElement } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Leaf, Eye, EyeOff, Mail, Lock, User, Phone, MapPin, ShieldCheck, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -54,7 +54,7 @@ export function LoginPage() {
             value={form.password}
             onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
           />
-          <button type="button" onClick={() => setShowPw(p => !p)}
+          <button type="button" onClick={() => setShowPw(p => !p)} aria-label={showPw ? t('a11y.hidePassword') : t('a11y.showPassword')}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-earth-400 hover:text-earth-600">
             {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
@@ -157,10 +157,10 @@ export function RegisterPage() {
             maxLength={10} />
         </Field>
         <div>
-          <label className="block text-sm font-medium text-bark mb-1.5">{t('auth.register.address')}</label>
+          <label htmlFor="auth-address" className="block text-sm font-medium text-bark mb-1.5">{t('auth.register.address')}</label>
           <div className="relative">
             <MapPin className="absolute left-3 top-3 w-4 h-4 text-earth-400 pointer-events-none" />
-            <textarea
+            <textarea id="auth-address"
               className={`input-field pl-10 resize-none ${errors.address ? 'border-red-400 focus:ring-red-400' : ''}`}
               rows={2}
               placeholder={t('auth.register.addressPlaceholder')}
@@ -176,7 +176,7 @@ export function RegisterPage() {
             placeholder={t('auth.register.createPasswordPlaceholder')}
             value={form.password}
             onChange={e => setForm(p => ({ ...p, password: e.target.value }))} />
-          <button type="button" onClick={() => setShowPw(p => !p)}
+          <button type="button" onClick={() => setShowPw(p => !p)} aria-label={showPw ? t('a11y.hidePassword') : t('a11y.showPassword')}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-earth-400 hover:text-earth-600">
             {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
@@ -265,10 +265,11 @@ function OTPVerificationPage({ email, onVerified, onBack }) {
     <AuthLayout title={t('auth.otp.title')} subtitle={t('auth.otp.subtitle', { email })}>
       <form onSubmit={handleVerify} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-bark mb-1.5">{t('auth.otp.label')}</label>
+          <label htmlFor="auth-otp" className="block text-sm font-medium text-bark mb-1.5">{t('auth.otp.label')}</label>
           <div className="relative">
             <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-earth-400" />
             <input
+                id="auth-otp"
               type="text"
               inputMode="numeric"
               maxLength={6}
@@ -337,12 +338,16 @@ function AuthLayout({ title, subtitle, children }) {
 
 // ─── Field Helper ──────────────────────────────────────
 function Field({ label, icon: Icon, error, children }) {
+  const id = useId()
+  // Link the label to the field so screen readers announce it and clicking it focuses the input
+  const linked = Children.map(children, c =>
+    isValidElement(c) && ['input', 'textarea', 'select'].includes(c.type) ? cloneElement(c, { id }) : c)
   return (
     <div>
-      <label className="block text-sm font-medium text-bark mb-1.5">{label}</label>
+      <label htmlFor={id} className="block text-sm font-medium text-bark mb-1.5">{label}</label>
       <div className="relative">
         <Icon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-earth-400 pointer-events-none" />
-        {children}
+        {linked}
       </div>
       {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
     </div>

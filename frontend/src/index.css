@@ -118,11 +118,11 @@
   }
  
   .table-header {
-    @apply text-xs font-semibold uppercase tracking-wider text-earth-500 bg-earth-50 px-4 py-3;
+    @apply text-xs font-semibold uppercase tracking-wider text-earth-500 bg-earth-50 px-2.5 md:px-4 py-3;
   }
  
   .table-cell {
-    @apply px-4 py-3.5 text-sm text-bark border-b border-earth-50;
+    @apply px-2.5 md:px-4 py-3.5 text-sm text-bark border-b border-earth-50;
   }
  
   .nav-link {

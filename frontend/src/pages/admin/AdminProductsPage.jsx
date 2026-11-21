@@ -120,11 +120,11 @@ export default function AdminProductsPage() {
       </div>
  
       <div className="card overflow-x-auto">
-        <table className="w-full min-w-[640px]">
+        <table className="w-full md:min-w-[640px]">
           <thead>
             <tr>
-              {[t('admin.products.id'), t('admin.products.name'), t('admin.products.category'), t('admin.products.price'), t('admin.products.stock'), t('admin.products.actions')].map(h => (
-                <th key={h} className="table-header text-left">{h}</th>
+              {[t('admin.products.id'), t('admin.products.name'), t('admin.products.category'), t('admin.products.price'), t('admin.products.stock'), t('admin.products.actions')].map((h, i) => (
+                <th key={h} className={`table-header text-left ${[0, 2, 4].includes(i) ? 'hidden md:table-cell' : ''}`}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -139,7 +139,7 @@ export default function AdminProductsPage() {
               )
               : products.map(p => (
                 <tr key={p.product_id} className="hover:bg-earth-50/50 transition-colors">
-                  <td className="table-cell font-mono text-xs text-earth-400">#{p.product_id}</td>
+                  <td className="hidden md:table-cell table-cell font-mono text-xs text-earth-400">#{p.product_id}</td>
                   <td className="table-cell">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-earth-100">
@@ -148,22 +148,25 @@ export default function AdminProductsPage() {
                           : <div className="w-full h-full product-img-placeholder flex items-center justify-center text-sm">🌾</div>
                         }
                       </div>
-                      <span className="font-medium text-sm text-bark max-w-[200px] truncate">{p.name}</span>
+                      <div className="min-w-0">
+                        <span className="block font-medium text-sm text-bark max-w-[110px] md:max-w-[200px] truncate">{p.name}</span>
+                        <span className={`md:hidden block text-xs ${p.stock_quantity === 0 ? 'text-red-600' : p.stock_quantity < 10 ? 'text-amber-600' : 'text-bark'}`}>{t('admin.products.stock')}: {p.stock_quantity}</span>
+                      </div>
                     </div>
                   </td>
-                  <td className="table-cell text-sm text-earth-500">{p.category_name || '—'}</td>
+                  <td className="hidden md:table-cell table-cell text-sm text-earth-500">{p.category_name || '—'}</td>
                   <td className="table-cell font-semibold text-leaf-700">{formatCurrency(p.price)}</td>
-                  <td className="table-cell">
+                  <td className="hidden md:table-cell table-cell">
                     <span className={`font-medium text-sm ${p.stock_quantity === 0 ? 'text-red-600' : p.stock_quantity < 10 ? 'text-amber-600' : 'text-bark'}`}>
                       {p.stock_quantity}
                     </span>
                   </td>
                   <td className="table-cell">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-earth-100 text-earth-500 hover:text-leaf-700 transition-colors">
+                      <button onClick={() => openEdit(p)} aria-label={t('a11y.edit')} className="p-1.5 rounded-lg hover:bg-earth-100 text-earth-500 hover:text-leaf-700 transition-colors">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => setDeleteId(p.product_id)} className="p-1.5 rounded-lg hover:bg-red-50 text-earth-500 hover:text-red-600 transition-colors">
+                      <button onClick={() => setDeleteId(p.product_id)} aria-label={t('a11y.delete')} className="p-1.5 rounded-lg hover:bg-red-50 text-earth-500 hover:text-red-600 transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>

@@ -538,5 +538,15 @@
     "totalAmount": "TOTAL AMOUNT",
     "status": "Status",
     "thankYou": "Thank you for shopping with Shetkari Krushi Bhandar!"
+  },
+  "a11y": {
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "close": "Close",
+    "edit": "Edit",
+    "delete": "Delete",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "toggleMenu": "Open or close menu"
   }
 }

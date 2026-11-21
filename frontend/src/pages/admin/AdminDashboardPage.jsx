@@ -2,15 +2,13 @@ import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Package, ShoppingBag, Clock, Truck, CheckCircle,
-  XCircle, IndianRupee, AlertTriangle, ArrowRight, Tag, Users
+  IndianRupee, AlertTriangle, ArrowRight, Tag, Users
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { dashboardAPI, orderAPI, productAPI, authAPI, addUpdateListener, removeUpdateListener } from '../../services/api'
 import { StatsCard, PageLoader, StatusBadge } from '../../components/UI'
 import { formatCurrency, formatDateTime } from '../../utils/helpers'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import i18n from '../../i18n'
-import toast from 'react-hot-toast'
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation()
@@ -46,6 +44,8 @@ export default function AdminDashboardPage() {
     addUpdateListener(handleUpdate)
     return () => removeUpdateListener(handleUpdate)
   }, [fetchAll])
+
+  if (loading) return <PageLoader />
 
   const statusData = [
     { name: t('status.pending'),   value: stats?.pending   || 0, color: '#f59e0b' },

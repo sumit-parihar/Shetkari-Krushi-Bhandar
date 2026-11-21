@@ -5,7 +5,7 @@ import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -44,15 +44,19 @@ from app.utils.rate_limiter import limiter  # shared instance used by route deco
 from app.utils.response import APIError, error_response
 from app.db.connection import _new_connection, DBConnection
 from app.dependencies.auth import user_from_token
+from app.utils.middleware import BodySizeLimitMiddleware, SecurityHeadersMiddleware
 from fastapi import HTTPException
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # ── App ────────────────────────────────────────────────────
+# Interactive API docs only in development (ENV=dev); hidden in production
 app = FastAPI(
     title="Shetkari Krushi Bhandar API",
     version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    docs_url="/api/docs" if _is_dev else None,
+    redoc_url="/api/redoc" if _is_dev else None,
+    openapi_url="/api/openapi.json" if _is_dev else None,
 )
 
 # Attach rate limiter to app state so slowapi can find it
@@ -63,6 +67,24 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 @app.exception_handler(APIError)
 async def api_error_handler(request: Request, exc: APIError):
     return error_response(exc.message, exc.status_code)
+
+
+# Every error uses the same {"success": false, "error": "..."} shape,
+# including 401/403 from the auth guards and 404/405 from routing.
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(request: Request, exc: StarletteHTTPException):
+    response = error_response(str(exc.detail), exc.status_code)
+    for k, v in (getattr(exc, "headers", None) or {}).items():
+        response.headers[k] = v
+    return response
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    first = (exc.errors() or [{}])[0]
+    field = ".".join(str(p) for p in first.get("loc", []) if p not in ("path", "query", "body"))
+    message = f"Invalid {field}: {first.get('msg', 'invalid value')}" if field else "Invalid request"
+    return error_response(message, 422)
 
 # ── CORS ───────────────────────────────────────────────────
 # Build allowed origins from env — supports comma-separated list
@@ -77,6 +99,11 @@ if _is_dev:
 
 logger.info("CORS allowed origins: %s", _allowed_origins)
 
+# Middleware order: the last one added runs first. CORS is outermost so even
+# 413 / error responses carry CORS headers and the browser can read them.
+MAX_BODY_SIZE = 1 * 1024 * 1024  # 1 MB
+app.add_middleware(SecurityHeadersMiddleware, production=not _is_dev)
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=MAX_BODY_SIZE)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
@@ -84,19 +111,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ── Body size limit (1 MB) ─────────────────────────────────
-MAX_BODY_SIZE = 1 * 1024 * 1024  # 1 MB
-
-@app.middleware("http")
-async def limit_body_size(request: Request, call_next):
-    content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > MAX_BODY_SIZE:
-        return JSONResponse(
-            status_code=413,
-            content={"success": False, "error": "Request body too large (max 1 MB)", "data": None, "message": None}
-        )
-    return await call_next(request)
 
 # ── Routers (all under /api/v1/) ───────────────────────────
 API_PREFIX = "/api/v1"

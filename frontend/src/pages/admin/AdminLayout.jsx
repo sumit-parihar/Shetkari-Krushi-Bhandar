@@ -1,5 +1,7 @@
+import { Suspense } from 'react'
 import { Outlet } from 'react-router-dom'
 import AdminSidebar, { AdminMobileNav } from '../../components/AdminSidebar'
+import { PageLoader } from '../../components/UI'
 
 export default function AdminLayout() {
   return (
@@ -8,7 +10,10 @@ export default function AdminLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         <AdminMobileNav />
         <main className="flex-1 bg-cream">
-          <Outlet />
+          {/* Admin pages load on demand; only this area shows the loader */}
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

@@ -112,10 +112,11 @@ export default function ProfilePage() {
  
         <form onSubmit={handleProfileSave} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-bark mb-1.5">{t('profile.fullName')}</label>
+            <label htmlFor="profile-fullName" className="block text-sm font-medium text-bark mb-1.5">{t('profile.fullName')}</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-earth-400" />
               <input
+                id="profile-fullName"
                 type="text"
                 className={`input-field pl-10 ${profileErrors.name ? 'border-red-400' : ''}`}
                 value={profileForm.name}
@@ -127,10 +128,11 @@ export default function ProfilePage() {
           </div>
  
           <div>
-            <label className="block text-sm font-medium text-bark mb-1.5">{t('profile.email')}</label>
+            <label htmlFor="profile-email" className="block text-sm font-medium text-bark mb-1.5">{t('profile.email')}</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-earth-400" />
               <input
+                id="profile-email"
                 type="email"
                 className={`input-field pl-10 ${profileErrors.email ? 'border-red-400' : ''}`}
                 value={profileForm.email}
@@ -142,10 +144,11 @@ export default function ProfilePage() {
           </div>
  
           <div>
-            <label className="block text-sm font-medium text-bark mb-1.5">{t('profile.phone')}</label>
+            <label htmlFor="profile-phone" className="block text-sm font-medium text-bark mb-1.5">{t('profile.phone')}</label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-earth-400" />
               <input
+                id="profile-phone"
                 type="tel"
                 className={`input-field pl-10 ${profileErrors.phone ? 'border-red-400' : ''}`}
                 value={profileForm.phone}
@@ -158,10 +161,10 @@ export default function ProfilePage() {
           </div>
  
           <div>
-            <label className="block text-sm font-medium text-bark mb-1.5">{t('profile.address')}</label>
+            <label htmlFor="profile-address" className="block text-sm font-medium text-bark mb-1.5">{t('profile.address')}</label>
             <div className="relative">
               <MapPin className="absolute left-3 top-3 w-4 h-4 text-earth-400" />
-              <textarea
+              <textarea id="profile-address"
                 className="input-field pl-10 resize-none"
                 rows={3}
                 value={profileForm.address}
@@ -193,17 +196,18 @@ export default function ProfilePage() {
  
         <form onSubmit={handlePasswordSave} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-bark mb-1.5">{t('profile.currentPassword')}</label>
+            <label htmlFor="profile-currentPassword" className="block text-sm font-medium text-bark mb-1.5">{t('profile.currentPassword')}</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-earth-400" />
               <input
+                id="profile-currentPassword"
                 type={showCurrent ? 'text' : 'password'}
                 className={`input-field pl-10 pr-10 ${pwErrors.current_password ? 'border-red-400' : ''}`}
                 value={pwForm.current_password}
                 onChange={e => setPwForm(p => ({ ...p, current_password: e.target.value }))}
                 placeholder={t('profile.currentPasswordPlaceholder')}
               />
-              <button type="button" onClick={() => setShowCurrent(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-earth-400">
+              <button type="button" onClick={() => setShowCurrent(p => !p)} aria-label={showCurrent ? t('a11y.hidePassword') : t('a11y.showPassword')} className="absolute right-3 top-1/2 -translate-y-1/2 text-earth-400">
                 {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
@@ -211,17 +215,18 @@ export default function ProfilePage() {
           </div>
  
           <div>
-            <label className="block text-sm font-medium text-bark mb-1.5">{t('profile.newPassword')}</label>
+            <label htmlFor="profile-newPassword" className="block text-sm font-medium text-bark mb-1.5">{t('profile.newPassword')}</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-earth-400" />
               <input
+                id="profile-newPassword"
                 type={showNew ? 'text' : 'password'}
                 className={`input-field pl-10 pr-10 ${pwErrors.new_password ? 'border-red-400' : ''}`}
                 value={pwForm.new_password}
                 onChange={e => setPwForm(p => ({ ...p, new_password: e.target.value }))}
                 placeholder={t('profile.newPasswordPlaceholder')}
               />
-              <button type="button" onClick={() => setShowNew(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-earth-400">
+              <button type="button" onClick={() => setShowNew(p => !p)} aria-label={showNew ? t('a11y.hidePassword') : t('a11y.showPassword')} className="absolute right-3 top-1/2 -translate-y-1/2 text-earth-400">
                 {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
@@ -229,10 +234,11 @@ export default function ProfilePage() {
           </div>
  
           <div>
-            <label className="block text-sm font-medium text-bark mb-1.5">{t('profile.confirmNewPassword')}</label>
+            <label htmlFor="profile-confirmNewPassword" className="block text-sm font-medium text-bark mb-1.5">{t('profile.confirmNewPassword')}</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-earth-400" />
               <input
+                id="profile-confirmNewPassword"
                 type="password"
                 className={`input-field pl-10 ${pwErrors.confirm_password ? 'border-red-400' : ''}`}
                 value={pwForm.confirm_password}

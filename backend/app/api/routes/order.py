@@ -2,8 +2,8 @@ import logging
 from fastapi import APIRouter, Request, Depends
 from app.db.connection import get_db
 from app.dependencies.body import json_body, optional_json_body
-from app.utils.response import success_response, error_response
-from app.utils.validators import validate_page_limit
+from app.utils.response import success_response, error_response, APIError
+from app.utils.validators import validate_page_limit, validate_status_filter
 from app.dependencies.auth import require_user, require_admin, require_customer, require_delivery_boy
 from app.utils.roles import normalize_role
 from app.utils.sse import notify
@@ -24,7 +24,7 @@ def _restore_stock(conn, order_id: int) -> None:
         FROM (
             SELECT product_id, SUM(quantity) AS qty
             FROM Order_Items
-            WHERE order_id = ?
+            WHERE order_id = %s
             GROUP BY product_id
         ) oi
         WHERE p.product_id = oi.product_id
@@ -46,7 +46,7 @@ def _attach_items(conn, orders, fields):
             SELECT oi.order_id, oi.product_id, p.name, oi.quantity, oi.price
             FROM Order_Items oi
             JOIN Products p ON oi.product_id = p.product_id
-            WHERE oi.order_id = ANY(?)
+            WHERE oi.order_id = ANY(%s)
             ORDER BY oi.order_item_id
             """,
             (order_ids,),
@@ -64,14 +64,13 @@ logger = logging.getLogger(__name__)
 @router.post("/")
 def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict = Depends(optional_json_body)):
     user_id          = user["user_id"]
-    delivery_address = None
-    addr = body.get("delivery_address")
-    if addr is not None and str(addr).strip():
-        delivery_address = str(addr).strip()[:500]  # enforce max length
+    delivery_address = str(body.get("delivery_address") or "").strip()[:500]  # enforce max length
+    if not delivery_address:
+        return error_response("Delivery address is required", 400)
 
     try:
         cart = conn.execute(
-            "SELECT cart_id FROM Cart WHERE user_id = ?", (user_id,)
+            "SELECT cart_id FROM Cart WHERE user_id = %s", (user_id,)
         ).fetchone()
         if not cart:
             return error_response("Cart is empty", 400)
@@ -82,7 +81,7 @@ def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict
             SELECT ci.cart_item_id, ci.product_id, ci.quantity, p.price, p.stock_quantity, p.name, p.is_active
             FROM Cart_Items ci
             JOIN Products p ON ci.product_id = p.product_id
-            WHERE ci.cart_id = ?
+            WHERE ci.cart_id = %s
             """,
             (cart_id,),
         ).fetchall()
@@ -111,7 +110,7 @@ def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict
             cursor = conn.execute(
                 """
                 INSERT INTO Orders (user_id, total_amount, payment_method, order_status, delivery_address)
-                VALUES (?, ?, 'COD', 'Pending', ?)
+                VALUES (%s, %s, 'COD', 'Pending', %s)
                 """,
                 (user_id, total_amount, delivery_address),
             )
@@ -121,7 +120,7 @@ def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict
                 conn.execute(
                     """
                     INSERT INTO Order_Items (order_id, product_id, quantity, price)
-                    VALUES (?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s)
                     """,
                     (order_id, item["product_id"], item["quantity"], item["price"]),
                 )
@@ -130,8 +129,8 @@ def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict
                 # from both passing the earlier check and driving stock negative.
                 deducted = conn.execute(
                     """
-                    UPDATE Products SET stock_quantity = stock_quantity - ?
-                    WHERE product_id = ? AND stock_quantity >= ?
+                    UPDATE Products SET stock_quantity = stock_quantity - %s
+                    WHERE product_id = %s AND stock_quantity >= %s
                     RETURNING product_id
                     """,
                     (item["quantity"], item["product_id"], item["quantity"]),
@@ -144,8 +143,12 @@ def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict
                         400,
                     )
 
-            conn.execute("DELETE FROM Cart_Items WHERE cart_id = ?", (cart_id,))
+            conn.execute("DELETE FROM Cart_Items WHERE cart_id = %s", (cart_id,))
             conn.commit()
+
+        except APIError:
+
+            raise
 
         except Exception:
             # Roll back every change made in this transaction
@@ -160,6 +163,10 @@ def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict
             message=f"Order placed successfully with order_id {order_id}",
         )
 
+    except APIError:
+
+        raise
+
     except Exception:
         logger.exception("place_order outer failure for user_id: %s", user_id)
         return error_response("Internal server error", 500)
@@ -170,7 +177,9 @@ def place_order(conn=Depends(get_db), user=Depends(require_customer), body: dict
 def order_history(request: Request, conn=Depends(get_db), user=Depends(require_customer)):
     user_id = user["user_id"]
     params  = request.query_params
-    status  = params.get("status")
+    status, serr = validate_status_filter(params.get("status"))
+    if serr:
+        return error_response(serr, 400)
 
     try:
         page, limit, perr = validate_page_limit(params.get("page"), params.get("limit"))
@@ -178,11 +187,11 @@ def order_history(request: Request, conn=Depends(get_db), user=Depends(require_c
             return error_response(perr, 400)
         offset = (page - 1) * limit
 
-        base_query  = "FROM Orders WHERE user_id = ?"
+        base_query  = "FROM Orders WHERE user_id = %s"
         query_params = [user_id]
 
-        if status and status != "All":
-            base_query += " AND order_status = ?"
+        if status:
+            base_query += " AND order_status = %s"
             query_params.append(status)
 
         total       = conn.execute(f"SELECT COUNT(*) {base_query}", tuple(query_params)).fetchone()[0]
@@ -193,7 +202,7 @@ def order_history(request: Request, conn=Depends(get_db), user=Depends(require_c
             SELECT order_id, total_amount, order_status, payment_method, order_date, delivery_address
             {base_query}
             ORDER BY order_date DESC
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
             """,
             tuple(query_params + [limit, offset]),
         ).fetchall()
@@ -206,6 +215,10 @@ def order_history(request: Request, conn=Depends(get_db), user=Depends(require_c
             "orders": result, "total": total,
             "page": page, "limit": limit, "total_pages": total_pages,
         })
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("order_history failed for user_id: %s", user_id)
@@ -227,7 +240,7 @@ def update_order_status(
 
     try:
         order = conn.execute(
-            "SELECT order_id, order_status, user_id, delivery_boy_id FROM Orders WHERE order_id = ?", (order_id,)
+            "SELECT order_id, order_status, user_id, delivery_boy_id FROM Orders WHERE order_id = %s", (order_id,)
         ).fetchone()
         if not order:
             return error_response("Order not found", 404)
@@ -246,7 +259,7 @@ def update_order_status(
         # Conditional update: only applies if the status hasn't changed since we
         # read it, so a concurrent cancel can't restore stock twice.
         updated = conn.execute(
-            "UPDATE Orders SET order_status = ? WHERE order_id = ? AND order_status = ? RETURNING order_id",
+            "UPDATE Orders SET order_status = %s WHERE order_id = %s AND order_status = %s RETURNING order_id",
             (status, order_id, order["order_status"]),
         ).fetchone()
         if not updated:
@@ -259,6 +272,10 @@ def update_order_status(
                user_id=order["user_id"], delivery_boy_id=order["delivery_boy_id"])
         return success_response(message="Order status updated successfully")
 
+    except APIError:
+
+        raise
+
     except Exception:
         logger.exception("update_order_status failed for order_id: %s", order_id)
         conn.rollback()
@@ -269,7 +286,9 @@ def update_order_status(
 @router.get("/admin")
 def get_all_orders(request: Request, conn=Depends(get_db), user=Depends(require_admin)):
     params = request.query_params
-    status = params.get("status")
+    status, serr = validate_status_filter(params.get("status"))
+    if serr:
+        return error_response(serr, 400)
     search = params.get("search")
 
     try:
@@ -286,12 +305,12 @@ def get_all_orders(request: Request, conn=Depends(get_db), user=Depends(require_
         """
         query_params = []
 
-        if status and status != "All":
-            base_query += " AND o.order_status = ?"
+        if status:
+            base_query += " AND o.order_status = %s"
             query_params.append(status)
 
         if search:
-            base_query += " AND (u.name ILIKE ? OR o.order_id::text LIKE ?)"
+            base_query += " AND (u.name ILIKE %s OR o.order_id::text LIKE %s)"
             query_params.extend([f"%{search}%", f"%{search}%"])
 
         total       = conn.execute(f"SELECT COUNT(*) {base_query}", tuple(query_params)).fetchone()[0]
@@ -305,7 +324,7 @@ def get_all_orders(request: Request, conn=Depends(get_db), user=Depends(require_
                    o.delivery_address
             {base_query}
             ORDER BY o.order_date DESC
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
             """,
             tuple(query_params + [limit, offset]),
         ).fetchall()
@@ -320,6 +339,10 @@ def get_all_orders(request: Request, conn=Depends(get_db), user=Depends(require_
             "page": page, "limit": limit, "total_pages": total_pages,
         })
 
+    except APIError:
+
+        raise
+
     except Exception:
         logger.exception("get_all_orders admin failed")
         return error_response("Internal server error", 500)
@@ -332,10 +355,15 @@ def assign_delivery_boy(
 ):
 
     delivery_boy_id = data.get("delivery_boy_id")
+    if delivery_boy_id is not None:
+        try:
+            delivery_boy_id = int(delivery_boy_id)
+        except (TypeError, ValueError):
+            return error_response("delivery_boy_id must be an integer or null", 400)
 
     try:
         order = conn.execute(
-            "SELECT order_id, order_status, user_id, delivery_boy_id FROM Orders WHERE order_id = ?", (order_id,)
+            "SELECT order_id, order_status, user_id, delivery_boy_id FROM Orders WHERE order_id = %s", (order_id,)
         ).fetchone()
         if not order:
             return error_response("Order not found", 404)
@@ -344,14 +372,14 @@ def assign_delivery_boy(
 
         if delivery_boy_id is not None:
             db_user = conn.execute(
-                "SELECT user_id FROM Users WHERE user_id = ? AND role = 'delivery_boy' AND is_active",
+                "SELECT user_id FROM Users WHERE user_id = %s AND role = 'delivery_boy' AND is_active",
                 (delivery_boy_id,),
             ).fetchone()
             if not db_user:
                 return error_response("Delivery boy not found", 404)
 
         conn.execute(
-            "UPDATE Orders SET delivery_boy_id = ? WHERE order_id = ?",
+            "UPDATE Orders SET delivery_boy_id = %s WHERE order_id = %s",
             (delivery_boy_id, order_id),
         )
         conn.commit()
@@ -362,6 +390,10 @@ def assign_delivery_boy(
             # let the previously assigned delivery boy drop it from his list
             notify("delivery_boy_assigned", event, delivery_boy_id=previous)
         return success_response(message="Delivery boy assigned successfully")
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("assign_delivery_boy failed for order_id: %s", order_id)
@@ -377,7 +409,7 @@ def get_order_detail(order_id: int, conn=Depends(get_db), user=Depends(require_u
             """
             SELECT order_id, user_id, total_amount, order_status, payment_method,
                    order_date, delivery_address, delivery_boy_id
-            FROM Orders WHERE order_id = ?
+            FROM Orders WHERE order_id = %s
             """,
             (order_id,),
         ).fetchone()
@@ -391,25 +423,13 @@ def get_order_detail(order_id: int, conn=Depends(get_db), user=Depends(require_u
         if role == "delivery_boy" and order["delivery_boy_id"] != user["user_id"]:
             return error_response("Unauthorized access", 403)
 
-        items = conn.execute(
-            """
-            SELECT oi.product_id, p.name, oi.quantity, oi.price
-            FROM Order_Items oi
-            JOIN Products p ON oi.product_id = p.product_id
-            WHERE oi.order_id = ?
-            """,
-            (order_id,),
-        ).fetchall()
+        return success_response(data=_attach_items(conn, [order], (
+            "order_id", "total_amount", "order_status", "payment_method", "order_date", "delivery_address",
+        ))[0])
 
-        return success_response(data={
-            "order_id":        order["order_id"],
-            "total_amount":    order["total_amount"],
-            "order_status":    order["order_status"],
-            "payment_method":  order["payment_method"],
-            "order_date":      order["order_date"],
-            "delivery_address": order["delivery_address"],
-            "items": [dict(i) for i in items],
-        })
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("get_order_detail failed for order_id: %s", order_id)
@@ -422,7 +442,7 @@ def cancel_order(order_id: int, conn=Depends(get_db), user=Depends(require_custo
     user_id = user["user_id"]
     try:
         order = conn.execute(
-            "SELECT order_id, user_id, order_status, delivery_boy_id FROM Orders WHERE order_id = ?", (order_id,)
+            "SELECT order_id, user_id, order_status, delivery_boy_id FROM Orders WHERE order_id = %s", (order_id,)
         ).fetchone()
 
         if not order:
@@ -436,7 +456,7 @@ def cancel_order(order_id: int, conn=Depends(get_db), user=Depends(require_custo
         cancelled = conn.execute(
             """
             UPDATE Orders SET order_status = 'Cancelled'
-            WHERE order_id = ? AND order_status IN ('Pending', 'Shipped')
+            WHERE order_id = %s AND order_status IN ('Pending', 'Shipped')
             RETURNING order_id
             """,
             (order_id,),
@@ -449,6 +469,10 @@ def cancel_order(order_id: int, conn=Depends(get_db), user=Depends(require_custo
         notify("order_status_changed", {"order_id": order_id, "new_status": "Cancelled"},
                user_id=user_id, delivery_boy_id=order["delivery_boy_id"])
         return success_response(message="Order cancelled successfully")
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("cancel_order failed for order_id: %s", order_id)
@@ -463,7 +487,7 @@ def delivery_boy_summary(conn=Depends(get_db), user=Depends(require_delivery_boy
         rows = conn.execute(
             """
             SELECT order_status, COUNT(*) AS n
-            FROM Orders WHERE delivery_boy_id = ?
+            FROM Orders WHERE delivery_boy_id = %s
             GROUP BY order_status
             """,
             (user["user_id"],),
@@ -476,6 +500,8 @@ def delivery_boy_summary(conn=Depends(get_db), user=Depends(require_delivery_boy
             "delivered": counts.get("Delivered", 0),
             "cancelled": counts.get("Cancelled", 0),
         })
+    except APIError:
+        raise
     except Exception:
         logger.exception("delivery_boy_summary failed for user_id: %s", user["user_id"])
         return error_response("Internal server error", 500)
@@ -494,13 +520,15 @@ def delivery_boy_orders(
         if perr:
             return error_response(perr, 400)
         offset        = (page - 1) * limit
-        status_filter = params.get("status", "")
+        status_filter, serr = validate_status_filter(params.get("status"))
+        if serr:
+            return error_response(serr, 400)
 
-        base_query   = "FROM Orders WHERE delivery_boy_id = ?"
+        base_query   = "FROM Orders WHERE delivery_boy_id = %s"
         query_params = [delivery_boy_id]
 
-        if status_filter and status_filter != "All":
-            base_query += " AND order_status = ?"
+        if status_filter:
+            base_query += " AND order_status = %s"
             query_params.append(status_filter)
 
         total       = conn.execute(f"SELECT COUNT(*) {base_query}", tuple(query_params)).fetchone()[0]
@@ -514,7 +542,7 @@ def delivery_boy_orders(
             JOIN Users u ON o.user_id = u.user_id
             {base_query.replace('FROM Orders', '')}
             ORDER BY o.order_date DESC
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
             """,
             tuple(query_params + [limit, offset]),
         ).fetchall()
@@ -527,6 +555,10 @@ def delivery_boy_orders(
             "orders": result, "total": total,
             "page": page, "limit": limit, "total_pages": total_pages,
         })
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("delivery_boy_orders failed for user_id: %s", delivery_boy_id)
@@ -548,7 +580,7 @@ def delivery_boy_update_status(
 
     try:
         order = conn.execute(
-            "SELECT order_id, order_status, delivery_boy_id, user_id FROM Orders WHERE order_id = ?",
+            "SELECT order_id, order_status, delivery_boy_id, user_id FROM Orders WHERE order_id = %s",
             (order_id,),
         ).fetchone()
 
@@ -568,13 +600,25 @@ def delivery_boy_update_status(
                 400,
             )
 
-        conn.execute(
-            "UPDATE Orders SET order_status = ? WHERE order_id = ?", (new_status, order_id)
-        )
+        updated = conn.execute(
+            """
+            UPDATE Orders SET order_status = %s
+            WHERE order_id = %s AND order_status = %s AND delivery_boy_id = %s
+            RETURNING order_id
+            """,
+            (new_status, order_id, current, delivery_boy_id),
+        ).fetchone()
+        if not updated:
+            conn.rollback()
+            return error_response("This order was changed by someone else. Please refresh.", 409)
         conn.commit()
         notify("order_status_changed", {"order_id": order_id, "new_status": new_status},
                user_id=order["user_id"], delivery_boy_id=delivery_boy_id)
         return success_response(message=f"Order marked as {new_status}")
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("delivery_boy_update_status failed for order_id: %s", order_id)

@@ -61,11 +61,6 @@ def create_access_token(user_id: int, role: str) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-# Alias kept for backward compatibility with existing route files
-def generate_jwt(user_id: int, role: str) -> str:
-    return create_access_token(user_id, role)
-
-
 def decode_token(token: str) -> dict:
     try:
         return jwt.decode(

@@ -1,4 +1,8 @@
 import os
+import sys
+# Print ✓ / ✅ even when output is redirected to a file or pipe on Windows
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 import psycopg2
 from dotenv import load_dotenv
 from pathlib import Path

@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Request, Depends
 from app.db.connection import get_db
 from app.dependencies.body import json_body
-from app.utils.response import success_response, error_response
+from app.utils.response import success_response, error_response, APIError
 from app.dependencies.auth import require_customer
 
 router = APIRouter()
@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 def get_cart(conn=Depends(get_db), user=Depends(require_customer)):
     user_id = user["user_id"]
     try:
-        cart = conn.execute("SELECT cart_id FROM Cart WHERE user_id = ?", (user_id,)).fetchone()
+        cart = conn.execute("SELECT cart_id FROM Cart WHERE user_id = %s", (user_id,)).fetchone()
         if not cart:
-            conn.execute("INSERT INTO Cart (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING", (user_id,))
+            conn.execute("INSERT INTO Cart (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING", (user_id,))
             conn.commit()
             cart_id = conn.execute(
-                "SELECT cart_id FROM Cart WHERE user_id = ?", (user_id,)
+                "SELECT cart_id FROM Cart WHERE user_id = %s", (user_id,)
             ).fetchone()["cart_id"]
         else:
             cart_id = cart["cart_id"]
@@ -30,12 +30,16 @@ def get_cart(conn=Depends(get_db), user=Depends(require_customer)):
                    p.image_url, ci.quantity, p.stock_quantity
             FROM Cart_Items ci
             JOIN Products p ON ci.product_id = p.product_id
-            WHERE ci.cart_id = ?
+            WHERE ci.cart_id = %s
             """,
             (cart_id,),
         ).fetchall()
 
         return success_response(data={"cart_id": cart_id, "items": [dict(i) for i in items]})
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("get_cart failed for user_id: %s", user_id)
@@ -60,25 +64,25 @@ def add_to_cart(conn=Depends(get_db), user=Depends(require_customer), data: dict
 
     try:
         product = conn.execute(
-            "SELECT stock_quantity FROM Products WHERE product_id = ? AND is_active", (product_id,)
+            "SELECT stock_quantity FROM Products WHERE product_id = %s AND is_active", (product_id,)
         ).fetchone()
         if not product:
             return error_response("Product not found", 404)
         if product["stock_quantity"] < quantity:
             return error_response("Insufficient stock", 400)
 
-        cart = conn.execute("SELECT cart_id FROM Cart WHERE user_id = ?", (user_id,)).fetchone()
+        cart = conn.execute("SELECT cart_id FROM Cart WHERE user_id = %s", (user_id,)).fetchone()
         if not cart:
-            conn.execute("INSERT INTO Cart (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING", (user_id,))
+            conn.execute("INSERT INTO Cart (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING", (user_id,))
             conn.commit()
             cart_id = conn.execute(
-                "SELECT cart_id FROM Cart WHERE user_id = ?", (user_id,)
+                "SELECT cart_id FROM Cart WHERE user_id = %s", (user_id,)
             ).fetchone()["cart_id"]
         else:
             cart_id = cart["cart_id"]
 
         existing = conn.execute(
-            "SELECT cart_item_id, quantity FROM Cart_Items WHERE cart_id = ? AND product_id = ?",
+            "SELECT cart_item_id, quantity FROM Cart_Items WHERE cart_id = %s AND product_id = %s",
             (cart_id, product_id),
         ).fetchone()
 
@@ -89,17 +93,21 @@ def add_to_cart(conn=Depends(get_db), user=Depends(require_customer), data: dict
                     f"Cannot add more — only {product['stock_quantity']} in stock", 400
                 )
             conn.execute(
-                "UPDATE Cart_Items SET quantity = ? WHERE cart_item_id = ?",
+                "UPDATE Cart_Items SET quantity = %s WHERE cart_item_id = %s",
                 (new_qty, existing["cart_item_id"]),
             )
         else:
             conn.execute(
-                "INSERT INTO Cart_Items (cart_id, product_id, quantity) VALUES (?, ?, ?)",
+                "INSERT INTO Cart_Items (cart_id, product_id, quantity) VALUES (%s, %s, %s)",
                 (cart_id, product_id, quantity),
             )
 
         conn.commit()
         return success_response(message="Product added to cart successfully")
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("add_to_cart failed for user_id: %s product_id: %s", user_id, product_id)
@@ -130,7 +138,7 @@ def update_cart_item(
             SELECT ci.cart_item_id, ci.product_id, ci.cart_id
             FROM Cart_Items ci
             JOIN Cart c ON ci.cart_id = c.cart_id
-            WHERE ci.cart_item_id = ? AND c.user_id = ?
+            WHERE ci.cart_item_id = %s AND c.user_id = %s
             """,
             (cart_item_id, user_id),
         ).fetchone()
@@ -139,7 +147,7 @@ def update_cart_item(
             return error_response("Cart item not found", 404)
 
         product = conn.execute(
-            "SELECT stock_quantity FROM Products WHERE product_id = ?",
+            "SELECT stock_quantity FROM Products WHERE product_id = %s",
             (cart_item["product_id"],),
         ).fetchone()
         if product["stock_quantity"] < quantity:
@@ -148,10 +156,14 @@ def update_cart_item(
             )
 
         conn.execute(
-            "UPDATE Cart_Items SET quantity = ? WHERE cart_item_id = ?", (quantity, cart_item_id)
+            "UPDATE Cart_Items SET quantity = %s WHERE cart_item_id = %s", (quantity, cart_item_id)
         )
         conn.commit()
         return success_response(message="Cart item quantity updated")
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("update_cart_item failed for cart_item_id: %s", cart_item_id)
@@ -171,7 +183,7 @@ def remove_cart_item(
             SELECT ci.cart_item_id
             FROM Cart_Items ci
             JOIN Cart c ON ci.cart_id = c.cart_id
-            WHERE ci.cart_item_id = ? AND c.user_id = ?
+            WHERE ci.cart_item_id = %s AND c.user_id = %s
             """,
             (cart_item_id, user_id),
         ).fetchone()
@@ -179,9 +191,13 @@ def remove_cart_item(
         if not cart_item:
             return error_response("Cart item not found", 404)
 
-        conn.execute("DELETE FROM Cart_Items WHERE cart_item_id = ?", (cart_item_id,))
+        conn.execute("DELETE FROM Cart_Items WHERE cart_item_id = %s", (cart_item_id,))
         conn.commit()
         return success_response(message="Cart item removed successfully")
+
+    except APIError:
+
+        raise
 
     except Exception:
         logger.exception("remove_cart_item failed for cart_item_id: %s", cart_item_id)

@@ -16,7 +16,7 @@ i18n.on('languageChanged', syncLang)
  
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <App />
       <Toaster
         position="top-right"
@@ -48,6 +48,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 {t.type !== 'loading' && (
                   <button
                     onClick={() => toast.dismiss(t.id)}
+                    aria-label="Close notification"
                     className="text-earth-400 hover:text-earth-600 transition-colors ml-2"
                   >
                     <X className="w-3.5 h-3.5" />
