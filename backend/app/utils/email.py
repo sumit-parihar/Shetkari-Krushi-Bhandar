@@ -4,13 +4,6 @@ import html
 import logging
 import urllib.request
 import urllib.error
-from dotenv import load_dotenv
-from pathlib import Path
-
-# Load from backend/app/utils/.env
-_utils_env = Path(__file__).resolve().parent / ".env"
-load_dotenv(_utils_env)
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 

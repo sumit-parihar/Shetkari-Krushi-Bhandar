@@ -2,13 +2,6 @@ import os
 import logging
 import psycopg2
 import psycopg2.extras
-from dotenv import load_dotenv
-from pathlib import Path
-
-# Load .env from backend/app/utils/.env
-_utils_env = Path(__file__).resolve().parent.parent / "utils" / ".env"
-load_dotenv(_utils_env)
-load_dotenv()  # also try local .env
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +44,6 @@ class DBConnection:
     def execute(self, sql: str, params=None):
         # Convert SQLite ? placeholders → PostgreSQL %s
         pg_sql = sql.replace("?", "%s")
-        # Convert SQLite CAST(x AS TEXT) → PostgreSQL x::text
-        pg_sql = pg_sql.replace("CAST(o.order_id AS TEXT)", "o.order_id::text")
-        pg_sql = pg_sql.replace("CAST(order_id AS TEXT)",   "order_id::text")
 
         self._cursor.execute(pg_sql, params or None)
         return self

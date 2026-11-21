@@ -18,16 +18,6 @@ export const formatDateTime = (dateStr) => {
   })
 }
 
-export const getStatusColor = (status) => {
-  const map = {
-    Pending: 'badge-pending',
-    Shipped: 'badge-shipped',
-    Delivered: 'badge-delivered',
-    Cancelled: 'badge-cancelled',
-  }
-  return map[status] || 'badge bg-gray-100 text-gray-700'
-}
-
 export const truncate = (str, n = 60) =>
   str && str.length > n ? str.slice(0, n) + '…' : str
 

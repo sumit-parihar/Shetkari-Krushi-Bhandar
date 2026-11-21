@@ -4,9 +4,6 @@ import os
 import bcrypt
 import jwt
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +32,6 @@ ALGORITHM  = "HS256"
 # 8 hours — long enough for a full working day without re-login
 # Short enough to limit exposure if a token is stolen
 ACCESS_TOKEN_EXPIRE_HOURS  = 8
-REFRESH_TOKEN_EXPIRE_DAYS  = 7
 
 ISSUER   = "skb-api"
 AUDIENCE = "skb-users"
@@ -65,19 +61,6 @@ def create_access_token(user_id: int, role: str) -> str:
 # Alias kept for backward compatibility with existing route files
 def generate_jwt(user_id: int, role: str) -> str:
     return create_access_token(user_id, role)
-
-
-def create_refresh_token(user_id: int, role: str) -> str:
-    from app.utils.roles import normalize_role
-    payload = {
-        "user_id": user_id,
-        "role":    normalize_role(role),
-        "type":    "refresh",
-        "iss":     ISSUER,
-        "aud":     AUDIENCE,
-        "exp":     datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decode_token(token: str) -> dict:

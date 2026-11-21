@@ -1,4 +1,3 @@
-from pathlib import Path
 import logging
 import sys
 import asyncio
@@ -7,10 +6,7 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from dotenv import load_dotenv
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 # ── Logging ────────────────────────────────────────────────
@@ -20,11 +16,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
-
-# ── Env ────────────────────────────────────────────────────
-_backend_dir = Path(__file__).resolve().parent.parent
-load_dotenv(_backend_dir / ".env")
-load_dotenv(_backend_dir / "app" / "utils" / ".env")
 
 # ── Validate required env vars on startup ─────────────────
 FRONTEND_URL = os.getenv("FRONTEND_URL", "").strip()
@@ -49,9 +40,7 @@ if _missing:
 # ── Import routers ─────────────────────────────────────────
 from app.api.routes import auth, product, cart, order, dashboard, categories
 from app.utils.sse import subscribers
-
-# ── Rate limiter ───────────────────────────────────────────
-limiter = Limiter(key_func=get_remote_address)
+from app.utils.rate_limiter import limiter  # shared instance used by route decorators
 
 # ── App ────────────────────────────────────────────────────
 app = FastAPI(
@@ -145,7 +134,3 @@ async def stream_updates(request: Request):
             "X-Accel-Buffering": "no",
         }
     )
-
-# ── Broadcast helper ───────────────────────────────────────
-async def broadcast_update(event_type: str, data: dict):
-    await subscribers.broadcast({"type": event_type, "data": data})

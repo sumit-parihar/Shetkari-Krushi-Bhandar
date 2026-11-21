@@ -241,7 +241,7 @@ async def get_all_orders(request: Request, conn=Depends(get_db), user=Depends(re
             query_params.append(status)
 
         if search:
-            base_query += " AND (u.name LIKE ? OR CAST(o.order_id AS TEXT) LIKE ?)"
+            base_query += " AND (u.name LIKE ? OR o.order_id::text LIKE ?)"
             query_params.extend([f"%{search}%", f"%{search}%"])
 
         total       = conn.execute(f"SELECT COUNT(*) {base_query}", tuple(query_params)).fetchone()[0]

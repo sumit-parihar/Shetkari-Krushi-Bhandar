@@ -3,12 +3,8 @@ import psycopg2
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Try multiple possible .env locations
-_root = Path(__file__).resolve().parent
-load_dotenv(_root / "backend" / "app" / "utils" / ".env")
-load_dotenv(_root / "backend" / ".env")
-load_dotenv(_root / ".env")
-load_dotenv()  # also check current working directory
+# Load backend/.env (same file the backend app uses)
+load_dotenv(Path(__file__).resolve().parent / "backend" / ".env")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 if not DATABASE_URL:

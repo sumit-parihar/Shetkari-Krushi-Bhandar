@@ -1,16 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// API calls go directly to VITE_API_URL (see src/services/api.js), so no dev proxy is needed.
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        // No rewrite — keep /api/v1/... as-is since backend now uses /api/v1/ prefix
-      }
-    }
   }
 })
